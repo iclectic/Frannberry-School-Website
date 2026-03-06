@@ -1,4 +1,4 @@
-import { PrismaClient, Role, AssessmentType, AnnouncementScope } from '@prisma/client';
+import { PrismaClient, Role, AssessmentType, AnnouncementScope, DayOfWeek, AttendanceStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -8,6 +8,10 @@ async function main() {
   console.log('🌱 Seeding Frannberry School database...\n');
 
   // ── Clean existing data ─────────────────────────────────────────────────────
+  await prisma.reportCard.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.attendanceRecord.deleteMany();
+  await prisma.timetableSlot.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.fileAttachment.deleteMany();
   await prisma.message.deleteMany();
@@ -494,6 +498,109 @@ async function main() {
   });
 
   console.log('✅ Sample gallery images created');
+
+  // ── Timetable Slots ─────────────────────────────────────────────────────────
+  const timetableData = [
+    { classId: class7A.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.MONDAY, startTime: '09:00', endTime: '09:50', room: 'Room 12' },
+    { classId: class7A.id, subjectId: english.id, teacherId: teacherProfile2.id, day: DayOfWeek.MONDAY, startTime: '10:00', endTime: '10:50', room: 'Room 8' },
+    { classId: class7A.id, subjectId: science.id, teacherId: teacherProfile1.id, day: DayOfWeek.MONDAY, startTime: '11:10', endTime: '12:00', room: 'Lab 1' },
+    { classId: class7A.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.TUESDAY, startTime: '09:00', endTime: '09:50', room: 'Room 12' },
+    { classId: class7A.id, subjectId: english.id, teacherId: teacherProfile2.id, day: DayOfWeek.TUESDAY, startTime: '10:00', endTime: '10:50', room: 'Room 8' },
+    { classId: class7A.id, subjectId: science.id, teacherId: teacherProfile1.id, day: DayOfWeek.WEDNESDAY, startTime: '09:00', endTime: '09:50', room: 'Lab 1' },
+    { classId: class7A.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.WEDNESDAY, startTime: '10:00', endTime: '10:50', room: 'Room 12' },
+    { classId: class7A.id, subjectId: english.id, teacherId: teacherProfile2.id, day: DayOfWeek.THURSDAY, startTime: '09:00', endTime: '09:50', room: 'Room 8' },
+    { classId: class7A.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.THURSDAY, startTime: '11:10', endTime: '12:00', room: 'Room 12' },
+    { classId: class7A.id, subjectId: science.id, teacherId: teacherProfile1.id, day: DayOfWeek.FRIDAY, startTime: '09:00', endTime: '09:50', room: 'Lab 1' },
+    { classId: class7A.id, subjectId: english.id, teacherId: teacherProfile2.id, day: DayOfWeek.FRIDAY, startTime: '10:00', endTime: '10:50', room: 'Room 8' },
+    // Year 7B slots
+    { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.MONDAY, startTime: '13:00', endTime: '13:50', room: 'Room 12' },
+    { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.WEDNESDAY, startTime: '13:00', endTime: '13:50', room: 'Room 12' },
+    { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.FRIDAY, startTime: '13:00', endTime: '13:50', room: 'Room 12' },
+  ];
+
+  for (const slot of timetableData) {
+    await prisma.timetableSlot.create({ data: slot });
+  }
+
+  console.log('✅ Timetable slots created');
+
+  // ── Sample Attendance Records ──────────────────────────────────────────────
+  const attendanceDates = ['2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05'];
+  const students7A = [studentProfile1.id, studentProfile2.id];
+
+  for (const dateStr of attendanceDates) {
+    for (const sid of students7A) {
+      const isAbsent = sid === studentProfile1.id && dateStr === '2026-03-04';
+      const isLate = sid === studentProfile2.id && dateStr === '2026-03-03';
+      await prisma.attendanceRecord.create({
+        data: {
+          studentId: sid,
+          classId: class7A.id,
+          date: new Date(dateStr),
+          status: isAbsent ? AttendanceStatus.ABSENT : isLate ? AttendanceStatus.LATE : AttendanceStatus.PRESENT,
+          remark: isAbsent ? 'Unwell' : isLate ? 'Arrived 10 minutes late' : null,
+          markedById: teacher1.id,
+        },
+      });
+    }
+    // student3 in class7B
+    await prisma.attendanceRecord.create({
+      data: {
+        studentId: studentProfile3.id,
+        classId: class7B.id,
+        date: new Date(dateStr),
+        status: AttendanceStatus.PRESENT,
+        markedById: teacher1.id,
+      },
+    });
+  }
+
+  console.log('✅ Sample attendance records created');
+
+  // ── Sample Notifications ──────────────────────────────────────────────────
+  await prisma.notification.createMany({
+    data: [
+      { userId: student1.id, type: 'ANNOUNCEMENT', title: 'New Announcement', body: 'Spring Term Parent-Teacher Evening has been scheduled.', link: '/portal/announcements' },
+      { userId: student1.id, type: 'ASSIGNMENT', title: 'New Assignment', body: 'Fractions Revision Worksheet has been posted.', link: '/portal/assignments' },
+      { userId: student1.id, type: 'RESULT', title: 'Results Published', body: 'Your Autumn Term results are now available.', link: '/portal/results' },
+      { userId: parent1.id, type: 'ATTENDANCE', title: 'Absence Notification', body: 'Oliver Smith was marked absent on 4th March 2026.', link: '/portal/attendance' },
+      { userId: parent1.id, type: 'RESULT', title: 'Results Published', body: "Oliver's Autumn Term results are now available.", link: '/portal/results' },
+      { userId: teacher1.id, type: 'ANNOUNCEMENT', title: 'New Announcement', body: 'Spring Term Parent-Teacher Evening has been scheduled.', link: '/portal/announcements' },
+    ],
+  });
+
+  console.log('✅ Sample notifications created');
+
+  // ── Sample Report Card ────────────────────────────────────────────────────
+  await prisma.reportCard.create({
+    data: {
+      studentId: studentProfile1.id,
+      termId: term1.id,
+      classId: class7A.id,
+      totalScore: 143,
+      averageScore: 71.5,
+      subjectCount: 2,
+      overallGrade: 'B',
+      teacherComment: 'Oliver has had a solid Autumn Term. Strong in Mathematics, with room for improvement in English spelling and grammar.',
+      principalComment: 'A promising start to the year. Keep up the good work.',
+    },
+  });
+
+  await prisma.reportCard.create({
+    data: {
+      studentId: studentProfile2.id,
+      termId: term1.id,
+      classId: class7A.id,
+      totalScore: 92,
+      averageScore: 92,
+      subjectCount: 1,
+      overallGrade: 'A*',
+      teacherComment: 'Amara is an outstanding student. Her work in Mathematics has been exemplary this term.',
+      principalComment: 'Excellent achievement. We are very proud of your efforts.',
+    },
+  });
+
+  console.log('✅ Sample report cards created');
 
   console.log('\n🎉 Seeding complete!\n');
   console.log('═══════════════════════════════════════════════');

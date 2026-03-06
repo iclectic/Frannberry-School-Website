@@ -13,6 +13,10 @@ import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
 import { FileStorageModule } from './file-storage/file-storage.module';
 import { CmsModule } from './cms/cms.module';
+import { TimetableModule } from './timetable/timetable.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ReportCardsModule } from './report-cards/report-cards.module';
 
 @Module({
   imports: [
@@ -29,6 +33,10 @@ import { CmsModule } from './cms/cms.module';
     AuditModule,
     FileStorageModule,
     CmsModule,
+    TimetableModule,
+    AttendanceModule,
+    NotificationsModule,
+    ReportCardsModule,
   ],
   providers: [
     {
