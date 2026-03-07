@@ -288,6 +288,77 @@ export class AdminService {
 
   // ── Invite Codes ────────────────────────────────────────────────────────────
 
+  // ── Bulk CSV Import ──────────────────────────────────────────────────────
+
+  async bulkImportCsv(adminId: string, csvText: string) {
+    const lines = csvText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length < 2) {
+      return { created: 0, skipped: 0, errors: ['CSV must have a header row and at least one data row.'] };
+    }
+
+    const header = lines[0].toLowerCase().split(',').map((h) => h.trim());
+    const emailIdx = header.indexOf('email');
+    const firstNameIdx = header.indexOf('firstname');
+    const lastNameIdx = header.indexOf('lastname');
+    const roleIdx = header.indexOf('role');
+    const passwordIdx = header.indexOf('password');
+
+    if (emailIdx === -1 || firstNameIdx === -1 || lastNameIdx === -1 || roleIdx === -1) {
+      return { created: 0, skipped: 0, errors: ['CSV header must include: email, firstname, lastname, role (optionally password).'] };
+    }
+
+    const results = { created: 0, skipped: 0, errors: [] as string[] };
+    const validRoles = ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'STAFF'];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map((c) => c.trim());
+      const email = cols[emailIdx];
+      const firstName = cols[firstNameIdx];
+      const lastName = cols[lastNameIdx];
+      const roleStr = cols[roleIdx]?.toUpperCase();
+      const password = passwordIdx !== -1 && cols[passwordIdx] ? cols[passwordIdx] : 'Welcome123!';
+
+      if (!email || !firstName || !lastName || !roleStr) {
+        results.errors.push(`Row ${i + 1}: missing required fields.`);
+        results.skipped++;
+        continue;
+      }
+
+      if (!validRoles.includes(roleStr)) {
+        results.errors.push(`Row ${i + 1}: invalid role "${roleStr}".`);
+        results.skipped++;
+        continue;
+      }
+
+      try {
+        await this.createUser(adminId, {
+          email,
+          password,
+          firstName,
+          lastName,
+          role: roleStr as Role,
+        });
+        results.created++;
+      } catch (err: any) {
+        results.errors.push(`Row ${i + 1} (${email}): ${err.message || 'Unknown error'}`);
+        results.skipped++;
+      }
+    }
+
+    await this.audit.log({
+      userId: adminId,
+      action: 'CREATE',
+      entity: 'BulkImport',
+      details: `CSV import: ${results.created} created, ${results.skipped} skipped`,
+    });
+
+    return results;
+  }
+
   async createInvite(adminId: string, data: { email: string; role: Role }) {
     const code = uuidv4().slice(0, 12).toUpperCase();
     const expiresAt = new Date();

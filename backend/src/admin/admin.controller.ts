@@ -7,13 +7,18 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AdminService } from './admin.service';
+import { AuditService } from '../audit/audit.service';
 import { Role } from '@prisma/client';
 
 @ApiTags('Admin')
@@ -22,7 +27,28 @@ import { Role } from '@prisma/client';
 @Roles(Role.ADMIN)
 @Controller('admin')
 export class AdminController {
-  constructor(private adminService: AdminService) {}
+  constructor(
+    private adminService: AdminService,
+    private auditService: AuditService,
+  ) {}
+
+  // ── Audit Logs ────────────────────────────────────────────────────────────
+
+  @Get('audit-logs')
+  @ApiOperation({ summary: 'List all audit logs with filtering' })
+  async getAuditLogs(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('action') action?: string,
+    @Query('entity') entity?: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.auditService.getAllLogs(
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 50,
+      { action, entity, userId },
+    );
+  }
 
   // ── Users ───────────────────────────────────────────────────────────────────
 
@@ -162,5 +188,20 @@ export class AdminController {
     @Body() body: { email: string; role: Role },
   ) {
     return this.adminService.createInvite(adminId, body);
+  }
+
+  // ── Bulk CSV Import ───────────────────────────────────────────────────────
+
+  @Post('import-csv')
+  @ApiOperation({ summary: 'Bulk import users from CSV file' })
+  @UseInterceptors(FileInterceptor('file'))
+  async importCsv(
+    @CurrentUser('id') adminId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    if (!file.originalname.endsWith('.csv')) throw new BadRequestException('File must be a .csv');
+    const csvText = file.buffer.toString('utf-8');
+    return this.adminService.bulkImportCsv(adminId, csvText);
   }
 }

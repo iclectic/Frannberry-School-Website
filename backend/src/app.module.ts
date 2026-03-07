@@ -21,6 +21,7 @@ import { EventsModule } from './events/events.module';
 import { FeesModule } from './fees/fees.module';
 import { EmailModule } from './email/email.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     FeesModule,
     EmailModule,
     AnalyticsModule,
+    SearchModule,
   ],
   providers: [
     {

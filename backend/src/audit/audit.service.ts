@@ -42,6 +42,26 @@ export class AuditService {
     return { logs, total, page, limit };
   }
 
+  async getAllLogs(page = 1, limit = 50, filters?: { action?: string; entity?: string; userId?: string }) {
+    const where: any = {};
+    if (filters?.action) where.action = filters.action;
+    if (filters?.entity) where.entity = filters.entity;
+    if (filters?.userId) where.userId = filters.userId;
+
+    const skip = (page - 1) * limit;
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: { user: { select: { firstName: true, lastName: true, email: true, role: true } } },
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+    return { logs, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
   async getLogsForEntity(entity: string, entityId: string, page = 1, limit = 50) {
     const skip = (page - 1) * limit;
     const [logs, total] = await Promise.all([
