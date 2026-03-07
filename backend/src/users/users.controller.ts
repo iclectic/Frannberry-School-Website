@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -32,5 +32,23 @@ export class UsersController {
   @ApiOperation({ summary: 'Get students in my classes (teachers only)' })
   async getMyStudents(@CurrentUser('id') userId: string) {
     return this.usersService.getMyStudents(userId);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update current user profile' })
+  async updateProfile(
+    @CurrentUser('id') userId: string,
+    @Body() body: { firstName?: string; lastName?: string; phone?: string; avatarUrl?: string },
+  ) {
+    return this.usersService.updateProfile(userId, body);
+  }
+
+  @Patch('me/password')
+  @ApiOperation({ summary: 'Change current user password' })
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() body: { currentPassword: string; newPassword: string },
+  ) {
+    return this.usersService.changePassword(userId, body.currentPassword, body.newPassword);
   }
 }

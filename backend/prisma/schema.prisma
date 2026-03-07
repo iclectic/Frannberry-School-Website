@@ -71,7 +71,34 @@ enum NotificationType {
   ASSIGNMENT
   RESULT
   ATTENDANCE
+  FEE
+  EVENT
   GENERAL
+}
+
+enum EventType {
+  ACADEMIC
+  EXAM
+  HOLIDAY
+  SPORTS
+  CULTURAL
+  MEETING
+  OTHER
+}
+
+enum FeeStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  ONLINE
+  OTHER
 }
 
 enum AuditAction {
@@ -143,6 +170,12 @@ model User {
 
   // Notifications
   notifications    Notification[]
+
+  // Events created
+  eventsCreated    SchoolEvent[] @relation("EventCreator")
+
+  // Payments recorded
+  paymentsRecorded Payment[] @relation("PaymentRecorder")
 
   @@map("users")
 }
@@ -227,6 +260,9 @@ model StudentProfile {
   // Report cards
   reportCards     ReportCard[]
 
+  // Invoices
+  invoices        Invoice[]
+
   @@map("student_profiles")
 }
 
@@ -296,6 +332,7 @@ model Term {
   results      Result[]
   assignments  Assignment[]
   reportCards  ReportCard[]
+  feeTemplates FeeTemplate[]
 
   @@map("terms")
 }
@@ -315,6 +352,7 @@ model Class {
   timetableSlots TimetableSlot[]
   attendanceRecords AttendanceRecord[]
   reportCards    ReportCard[]
+  feeTemplates   FeeTemplate[]
 
   @@unique([name, year, section])
   @@map("classes")
@@ -630,6 +668,81 @@ model ReportCard {
 
   @@unique([studentId, termId])
   @@map("report_cards")
+}
+
+// ─── Events Calendar ────────────────────────────────────────────────────────
+
+model SchoolEvent {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  type        EventType @default(OTHER)
+  startDate   DateTime  @map("start_date")
+  endDate     DateTime  @map("end_date")
+  allDay      Boolean   @default(true) @map("all_day")
+  location    String?
+  isPublic    Boolean   @default(true) @map("is_public")
+  createdById String    @map("created_by_id")
+  createdBy   User      @relation("EventCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([startDate, endDate])
+  @@map("school_events")
+}
+
+// ─── Fee Management ─────────────────────────────────────────────────────────
+
+model FeeTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  amount      Float
+  termId      String?  @map("term_id")
+  term        Term?    @relation(fields: [termId], references: [id])
+  classId     String?  @map("class_id")
+  class       Class?   @relation(fields: [classId], references: [id])
+  dueDate     DateTime? @map("due_date")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  invoices    Invoice[]
+
+  @@map("fee_templates")
+}
+
+model Invoice {
+  id            String    @id @default(uuid())
+  invoiceNo     String    @unique @map("invoice_no")
+  studentId     String    @map("student_id")
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeTemplateId String    @map("fee_template_id")
+  feeTemplate   FeeTemplate @relation(fields: [feeTemplateId], references: [id])
+  amount        Float
+  amountPaid    Float     @default(0) @map("amount_paid")
+  status        FeeStatus @default(UNPAID)
+  dueDate       DateTime  @map("due_date")
+  issuedAt      DateTime  @default(now()) @map("issued_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  payments      Payment[]
+
+  @@index([studentId, status])
+  @@map("invoices")
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  invoiceId   String        @map("invoice_id")
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount      Float
+  method      PaymentMethod @default(OTHER)
+  reference   String?
+  note        String?
+  recordedById String       @map("recorded_by_id")
+  recordedBy  User          @relation("PaymentRecorder", fields: [recordedById], references: [id])
+  paidAt      DateTime      @default(now()) @map("paid_at")
+
+  @@map("payments")
 }
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────

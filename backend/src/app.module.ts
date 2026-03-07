@@ -17,6 +17,10 @@ import { TimetableModule } from './timetable/timetable.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportCardsModule } from './report-cards/report-cards.module';
+import { EventsModule } from './events/events.module';
+import { FeesModule } from './fees/fees.module';
+import { EmailModule } from './email/email.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -37,6 +41,10 @@ import { ReportCardsModule } from './report-cards/report-cards.module';
     AttendanceModule,
     NotificationsModule,
     ReportCardsModule,
+    EventsModule,
+    FeesModule,
+    EmailModule,
+    AnalyticsModule,
   ],
   providers: [
     {

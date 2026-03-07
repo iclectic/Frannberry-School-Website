@@ -10,9 +10,11 @@ import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EmailService } from '../email/email.service';
 import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { Role } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'crypto';
 
 const SALT_ROUNDS = 12;
 
@@ -23,6 +25,7 @@ export class AuthService {
     private jwt: JwtService,
     private config: ConfigService,
     private audit: AuditService,
+    private email: EmailService,
   ) {}
 
   async login(dto: LoginDto, ipAddress?: string) {
@@ -190,6 +193,70 @@ export class AuthService {
     });
 
     return { message: 'MFA disabled successfully' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    // Always return success to prevent email enumeration
+    if (!user) return { message: 'If an account exists with that email, a reset link has been sent.' };
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Store hashed token in mfaSecret field temporarily (reused field)
+    // In production, use a dedicated PasswordReset table
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { mfaSecret: `reset:${hashedToken}:${Date.now() + 3600000}` },
+    });
+
+    const frontendUrl = this.config.get<string>('CORS_ORIGIN', 'http://localhost:3000');
+    const resetLink = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
+
+    await this.email.sendPasswordReset(user.email, user.firstName, resetLink);
+
+    return { message: 'If an account exists with that email, a reset link has been sent.' };
+  }
+
+  async resetPassword(email: string, token: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (!user || !user.mfaSecret?.startsWith('reset:')) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const parts = user.mfaSecret.split(':');
+    const storedHash = parts[1];
+    const expiry = parseInt(parts[2], 10);
+
+    if (Date.now() > expiry) {
+      throw new BadRequestException('Reset token has expired');
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    if (hashedToken !== storedHash) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: hash, mfaSecret: user.mfaEnabled ? user.mfaSecret : null },
+    });
+
+    // Revoke all refresh tokens
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: user.id },
+      data: { revoked: true },
+    });
+
+    await this.audit.log({
+      userId: user.id,
+      action: 'PASSWORD_CHANGE',
+      entity: 'User',
+      entityId: user.id,
+    });
+
+    return { message: 'Password has been reset successfully. Please log in with your new password.' };
   }
 
   private async generateTokens(userId: string, email: string, role: Role) {

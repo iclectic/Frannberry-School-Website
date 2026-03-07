@@ -68,4 +68,20 @@ export class AuthController {
   async disableMfa(@CurrentUser('id') userId: string) {
     return this.authService.disableMfa(userId);
   }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a password reset email' })
+  async forgotPassword(@Body('email') email: string) {
+    return this.authService.forgotPassword(email);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token from email' })
+  async resetPassword(@Body() body: { email: string; token: string; newPassword: string }) {
+    return this.authService.resetPassword(body.email, body.token, body.newPassword);
+  }
 }

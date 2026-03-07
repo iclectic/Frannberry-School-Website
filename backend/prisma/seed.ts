@@ -1,4 +1,4 @@
-import { PrismaClient, Role, AssessmentType, AnnouncementScope, DayOfWeek, AttendanceStatus } from '@prisma/client';
+import { PrismaClient, Role, AssessmentType, AnnouncementScope, DayOfWeek, AttendanceStatus, EventType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -8,6 +8,10 @@ async function main() {
   console.log('🌱 Seeding Frannberry School database...\n');
 
   // ── Clean existing data ─────────────────────────────────────────────────────
+  await prisma.payment.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.feeTemplate.deleteMany();
+  await prisma.schoolEvent.deleteMany();
   await prisma.reportCard.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.attendanceRecord.deleteMany();
@@ -601,6 +605,89 @@ async function main() {
   });
 
   console.log('✅ Sample report cards created');
+
+  // ── School Events ──────────────────────────────────────────────────────────
+  await prisma.schoolEvent.createMany({
+    data: [
+      { title: 'Autumn Term Begins', type: EventType.ACADEMIC, startDate: new Date('2025-09-01'), endDate: new Date('2025-09-01'), location: 'Frannberry School', createdById: admin.id },
+      { title: 'Half-Term Break', type: EventType.HOLIDAY, startDate: new Date('2025-10-27'), endDate: new Date('2025-10-31'), createdById: admin.id },
+      { title: 'Year 7 Science Fair', type: EventType.ACADEMIC, startDate: new Date('2026-02-15'), endDate: new Date('2026-02-15'), location: 'Assembly Hall', createdById: admin.id },
+      { title: 'Spring Term Exams', type: EventType.EXAM, startDate: new Date('2026-03-16'), endDate: new Date('2026-03-20'), location: 'Exam Hall', createdById: admin.id },
+      { title: 'Parent-Teacher Evening', type: EventType.MEETING, startDate: new Date('2026-03-19'), endDate: new Date('2026-03-19'), location: 'Main Building', createdById: admin.id },
+      { title: 'Easter Holiday', type: EventType.HOLIDAY, startDate: new Date('2026-03-28'), endDate: new Date('2026-04-13'), createdById: admin.id },
+      { title: 'Sports Day', type: EventType.SPORTS, startDate: new Date('2026-06-12'), endDate: new Date('2026-06-12'), location: 'Sports Field', createdById: admin.id },
+      { title: 'Summer Concert', type: EventType.CULTURAL, startDate: new Date('2026-07-10'), endDate: new Date('2026-07-10'), location: 'Assembly Hall', createdById: admin.id },
+    ],
+  });
+
+  console.log('✅ School events created');
+
+  // ── Fee Templates & Invoices ───────────────────────────────────────────────
+  const tuitionFee = await prisma.feeTemplate.create({
+    data: {
+      name: 'Spring Term Tuition',
+      description: 'Tuition fee for Spring Term 2026',
+      amount: 2500.00,
+      termId: term2.id,
+      dueDate: new Date('2026-01-15'),
+    },
+  });
+
+  const labFee = await prisma.feeTemplate.create({
+    data: {
+      name: 'Science Lab Fee',
+      description: 'Laboratory equipment and materials fee',
+      amount: 150.00,
+      termId: term2.id,
+      classId: class7A.id,
+      dueDate: new Date('2026-02-01'),
+    },
+  });
+
+  // Create invoices for students
+  let invCounter = 1000;
+  for (const sp of [studentProfile1, studentProfile2]) {
+    invCounter++;
+    await prisma.invoice.create({
+      data: {
+        invoiceNo: `INV-2026-${invCounter}`,
+        studentId: sp.id,
+        feeTemplateId: tuitionFee.id,
+        amount: 2500.00,
+        amountPaid: sp.id === studentProfile1.id ? 2500.00 : 1000.00,
+        status: sp.id === studentProfile1.id ? 'PAID' : 'PARTIAL',
+        dueDate: new Date('2026-01-15'),
+      },
+    });
+
+    invCounter++;
+    await prisma.invoice.create({
+      data: {
+        invoiceNo: `INV-2026-${invCounter}`,
+        studentId: sp.id,
+        feeTemplateId: labFee.id,
+        amount: 150.00,
+        amountPaid: 0,
+        status: 'UNPAID',
+        dueDate: new Date('2026-02-01'),
+      },
+    });
+  }
+
+  invCounter++;
+  await prisma.invoice.create({
+    data: {
+      invoiceNo: `INV-2026-${invCounter}`,
+      studentId: studentProfile3.id,
+      feeTemplateId: tuitionFee.id,
+      amount: 2500.00,
+      amountPaid: 0,
+      status: 'UNPAID',
+      dueDate: new Date('2026-01-15'),
+    },
+  });
+
+  console.log('✅ Fee templates and invoices created');
 
   console.log('\n🎉 Seeding complete!\n');
   console.log('═══════════════════════════════════════════════');
