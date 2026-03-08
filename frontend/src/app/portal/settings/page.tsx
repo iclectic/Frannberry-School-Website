@@ -261,20 +261,38 @@ export default function SettingsPage() {
       </form>
 
       {/* Account Info */}
-      <div className="bg-white rounded-xl border p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">Account</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 p-6 mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">Account</h3>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">Two-Factor Authentication</span>
+            <span className="text-gray-500 dark:text-gray-400">Two-Factor Authentication</span>
             <span className={`font-medium ${profile?.mfaEnabled ? 'text-green-600' : 'text-gray-400'}`}>
               {profile?.mfaEnabled ? 'Enabled' : 'Disabled'}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Role</span>
-            <span className="font-medium text-gray-900">{profile?.role}</span>
+            <span className="text-gray-500 dark:text-gray-400">Role</span>
+            <span className="font-medium text-gray-900 dark:text-gray-100">{profile?.role}</span>
           </div>
         </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <a href="/portal/settings/mfa" className="flex items-center gap-3 bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+          <span className="text-xl">🔐</span>
+          <div>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Two-Factor Authentication</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Enable or manage MFA with an authenticator app</p>
+          </div>
+        </a>
+        <a href="/portal/settings/notifications" className="flex items-center gap-3 bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+          <span className="text-xl">🔔</span>
+          <div>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Notification Preferences</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Control email, push, and digest notifications</p>
+          </div>
+        </a>
       </div>
     </div>
   );

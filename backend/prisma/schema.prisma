@@ -177,6 +177,12 @@ model User {
   // Payments recorded
   paymentsRecorded Payment[] @relation("PaymentRecorder")
 
+  // Notification preferences
+  notificationPreference NotificationPreference?
+
+  // Custom roles
+  userCustomRoles UserCustomRole[]
+
   @@map("users")
 }
 
@@ -230,6 +236,9 @@ model TeacherProfile {
   // Timetable slots
   timetableSlots TimetableSlot[]
 
+  // Conference slots
+  conferenceSlots ConferenceSlot[]
+
   @@map("teacher_profiles")
 }
 
@@ -263,6 +272,9 @@ model StudentProfile {
   // Invoices
   invoices        Invoice[]
 
+  // Conference slots (as subject student)
+  conferenceSlots ConferenceSlot[]
+
   @@map("student_profiles")
 }
 
@@ -275,6 +287,9 @@ model ParentProfile {
 
   // Children links
   childLinks  ParentStudent[]
+
+  // Conference bookings
+  conferenceSlots ConferenceSlot[]
 
   @@map("parent_profiles")
 }
@@ -743,6 +758,106 @@ model Payment {
   paidAt      DateTime      @default(now()) @map("paid_at")
 
   @@map("payments")
+}
+
+// ─── Parent-Teacher Conferences ─────────────────────────────────────────────
+
+enum ConferenceStatus {
+  AVAILABLE
+  BOOKED
+  COMPLETED
+  CANCELLED
+}
+
+model ConferenceSlot {
+  id          String           @id @default(uuid())
+  teacherId   String           @map("teacher_id")
+  teacher     TeacherProfile   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  date        DateTime         @db.Date
+  startTime   String           @map("start_time")
+  endTime     String           @map("end_time")
+  location    String?
+  meetingUrl  String?          @map("meeting_url")
+  status      ConferenceStatus @default(AVAILABLE)
+  parentId    String?          @map("parent_id")
+  parent      ParentProfile?   @relation(fields: [parentId], references: [id])
+  studentId   String?          @map("student_id")
+  student     StudentProfile?  @relation(fields: [studentId], references: [id])
+  notes       String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([teacherId, date])
+  @@index([parentId])
+  @@map("conference_slots")
+}
+
+// ─── Notification Preferences ───────────────────────────────────────────────
+
+model NotificationPreference {
+  id               String  @id @default(uuid())
+  userId           String  @unique @map("user_id")
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailAnnouncements  Boolean @default(true) @map("email_announcements")
+  emailMessages       Boolean @default(true) @map("email_messages")
+  emailAssignments    Boolean @default(true) @map("email_assignments")
+  emailResults        Boolean @default(true) @map("email_results")
+  emailEvents         Boolean @default(true) @map("email_events")
+  emailFees           Boolean @default(true) @map("email_fees")
+  pushEnabled         Boolean @default(true) @map("push_enabled")
+  digestEnabled       Boolean @default(false) @map("digest_enabled")
+  digestFrequency     String  @default("daily") @map("digest_frequency")
+
+  @@map("notification_preferences")
+}
+
+// ─── Permissions / RBAC ─────────────────────────────────────────────────────
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  category    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model CustomRole {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  baseRole    Role     @map("base_role")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rolePermissions RolePermission[]
+  userCustomRoles UserCustomRole[]
+
+  @@map("custom_roles")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  customRoleId String     @map("custom_role_id")
+  customRole   CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  permissionId String     @map("permission_id")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([customRoleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserCustomRole {
+  id           String     @id @default(uuid())
+  userId       String     @map("user_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRoleId String     @map("custom_role_id")
+  customRole   CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, customRoleId])
+  @@map("user_custom_roles")
 }
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────

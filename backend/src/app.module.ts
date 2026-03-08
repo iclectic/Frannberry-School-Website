@@ -22,6 +22,10 @@ import { FeesModule } from './fees/fees.module';
 import { EmailModule } from './email/email.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SearchModule } from './search/search.module';
+import { ConferencesModule } from './conferences/conferences.module';
+import { NotificationPreferencesModule } from './notification-preferences/notification-preferences.module';
+import { ReportsModule } from './reports/reports.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
@@ -47,6 +51,10 @@ import { SearchModule } from './search/search.module';
     EmailModule,
     AnalyticsModule,
     SearchModule,
+    ConferencesModule,
+    NotificationPreferencesModule,
+    ReportsModule,
+    PermissionsModule,
   ],
   providers: [
     {
