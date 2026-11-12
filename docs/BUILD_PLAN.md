@@ -1,6 +1,6 @@
 # Frannberry Schools build plan
 
-Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–4 are done. Steps 5–8 are not started.
+Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–5 are done. Steps 6–8 are not started.
 
 ## Done
 
@@ -46,11 +46,15 @@ Frannberry is one trust with three schools: Nursery, Primary, and Secondary. Thi
 - `HEAD`, `ADMIN`, and `TEACHER` may sign in before MFA is confirmed, but that session can only open authenticator setup or sign out. Those roles cannot turn MFA off.
 - Parents, pupils, and other staff may turn MFA on if they want to.
 
-## Later
-
 ### Step 5. School-scoped dashboards
 
-Give each headteacher a dashboard for their own school, and give parents a view of a nursery child who cannot sign in. Do not start this until steps 1–4 are in use.
+- A headteacher’s dashboard is their own school: its classes, teachers, and pupils. Pupils and classes from the other schools are not included.
+- Nursery pupils are shown as unable to sign in. Primary and secondary pupils who have a login are shown as able to sign in.
+- `GET /api/v1/school/dashboard` is only for a `HEAD` account.
+- A parent can open a pupil record for their own child. A nursery child cannot sign in, so that record is how the parent sees the child’s school, class, and teacher.
+- `GET /api/v1/school/children/:studentId` is only for a `PARENT` linked to that child. Another parent receives “Child not found”.
+
+## Later
 
 ### Step 6. School-scoped teaching records
 

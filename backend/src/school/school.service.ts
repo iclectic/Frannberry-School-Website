@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { shapeChildView, shapeHeadDashboard } from './dashboard';
 import { PHASE_RULES, phaseRule, pupilCanLogin } from './phase-rules';
 
 @Injectable()
@@ -147,6 +148,127 @@ export class SchoolService {
       children,
     };
   }
+
+  async headDashboard(userId: string) {
+    const head = await this.prisma.headProfile.findUnique({
+      where: { userId },
+      include: { school: true },
+    });
+    if (!head) {
+      throw new ForbiddenException('Only a headteacher can open a school dashboard');
+    }
+
+    const [classes, pupils] = await Promise.all([
+      this.prisma.class.findMany({
+        where: { schoolId: head.schoolId },
+        include: {
+          classSubjects: {
+            include: {
+              teacher: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+            },
+          },
+        },
+      }),
+      this.prisma.studentProfile.findMany({
+        where: { schoolId: head.schoolId },
+        include: {
+          parentLinks: {
+            include: { parent: { include: { user: { select: { firstName: true, lastName: true } } } } },
+          },
+        },
+      }),
+    ]);
+
+    return shapeHeadDashboard(
+      head.school,
+      classes.map((schoolClass) => ({
+        id: schoolClass.id,
+        name: schoolClass.name,
+        year: schoolClass.year,
+        section: schoolClass.section,
+        keyStage: schoolClass.keyStage,
+        schoolId: schoolClass.schoolId,
+        teachers: uniqueTeachers(schoolClass.classSubjects.map((assignment) => ({
+          id: assignment.teacher.user.id,
+          name: `${assignment.teacher.user.firstName} ${assignment.teacher.user.lastName}`,
+        }))),
+      })),
+      pupils.map((pupil) => ({
+        studentId: pupil.id,
+        firstName: pupil.firstName,
+        lastName: pupil.lastName,
+        admissionNo: pupil.admissionNo,
+        schoolId: pupil.schoolId,
+        classId: pupil.classId,
+        userId: pupil.userId,
+        parents: pupil.parentLinks.map((link) => ({
+          name: `${link.parent.user.firstName} ${link.parent.user.lastName}`,
+          relation: link.relation,
+        })),
+      })),
+    );
+  }
+
+  async childForParent(userId: string, studentId: string) {
+    const parent = await this.prisma.parentProfile.findUnique({ where: { userId } });
+    if (!parent) {
+      throw new ForbiddenException('Only a parent can open a child record');
+    }
+
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { id: studentId },
+      include: {
+        school: true,
+        class: {
+          include: {
+            classSubjects: {
+              include: {
+                subject: { select: { name: true } },
+                teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
+              },
+            },
+          },
+        },
+        parentLinks: true,
+      },
+    });
+    if (!student) throw new NotFoundException('Child not found');
+
+    const link = student.parentLinks.find((item) => item.parentId === parent.id);
+    const school = student.school ?? null;
+    const result = shapeChildView({
+      viewerParentId: parent.id,
+      linkedParentIds: link ? [parent.id] : [],
+      pupil: {
+        studentId: student.id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        admissionNo: student.admissionNo,
+        dateOfBirth: student.dateOfBirth ? student.dateOfBirth.toISOString() : null,
+        enrollmentDate: student.enrollmentDate ? student.enrollmentDate.toISOString() : null,
+        userId: student.userId,
+        relation: link?.relation ?? '',
+        school: school
+          ? { id: school.id, phase: school.phase, name: school.name, ageMin: school.ageMin, ageMax: school.ageMax }
+          : null,
+        class: student.class
+          ? { id: student.class.id, name: student.class.name, year: student.class.year, keyStage: student.class.keyStage }
+          : null,
+        teachers: (student.class?.classSubjects ?? []).map((assignment) => ({
+          name: `${assignment.teacher.user.firstName} ${assignment.teacher.user.lastName}`,
+          subject: assignment.subject.name,
+        })),
+      },
+    });
+    if (!result.ok) throw new NotFoundException(result.reason);
+    return result.view;
+  }
+}
+
+function uniqueTeachers(teachers: { id: string; name: string }[]) {
+  const seen = new Map<string, { id: string; name: string }>();
+  for (const teacher of teachers) seen.set(teacher.id, teacher);
+  return [...seen.values()];
 }
 
 function phaseOrder(phase: string): number {

@@ -2,7 +2,7 @@
 
 A full-stack portal for the Frannberry trust: **Nursery**, **Primary**, and **Secondary**. The stack is a **NestJS** API, a **Next.js** portal, **Prisma**, **PostgreSQL**, **Redis**, and **MinIO**.
 
-The build order is in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md). Steps 1–4 are done. Steps 5–8 are later.
+The build order is in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md). Steps 1–5 are done. Steps 6–8 are later.
 
 ## Architecture
 
@@ -62,7 +62,7 @@ cd frontend && npm run dev
 
 Each school has one headteacher (`HEAD`). That account is not the office `ADMIN` account. A class that pairs a school with a key stage it does not teach is rejected.
 
-David Smith (`david.smith@example.com`) is the parent of Poppy (Nursery, no login), Isla (Primary), and Oliver (Secondary).
+David Smith (`david.smith@example.com`) is the parent of Poppy (Nursery, no login), Isla (Primary), and Oliver (Secondary). Poppy’s pupil record is the page a parent opens, because she cannot sign in. Each headteacher’s dashboard shows only their own school.
 
 ## Demo Credentials
 
@@ -82,7 +82,7 @@ Heads, office admins, and teachers must confirm an authenticator before the rest
 ## Backend Modules
 
 - **Auth** — Login, hashed refresh tokens, encrypted TOTP, eight single-use backup codes, sign-in lockout, password reset in its own table
-- **School** — `GET /api/v1/school/phases` (public) and `GET /api/v1/school/me`
+- **School** — `GET /api/v1/school/phases` (public), `GET /api/v1/school/me`, `GET /api/v1/school/dashboard` (the signed-in head’s own school), and `GET /api/v1/school/children/:studentId` (a parent’s own child, including a nursery child who cannot sign in)
 - **Users** — Profile retrieval, role-specific data
 - **Admin** — User CRUD, class placement by school and key stage, terms, grading scales, invite codes
 - **Assignments** — Create, update, publish, submit, grade
@@ -105,7 +105,8 @@ Heads, office admins, and teachers must confirm an authenticator before the rest
 - **/login** — Authentication with MFA support
 
 ### Portal Pages (authenticated)
-- **/portal** — Role-specific dashboard with greeting, stats, announcements
+- **/portal** — Role-specific dashboard. A headteacher sees only their own school.
+- **/portal/children** — A parent’s children. A nursery child opens as a pupil record because they cannot sign in.
 - **/portal/announcements** — View all announcements
 - **/portal/messages** — Real-time messaging with conversation list
 - **/portal/assignments** — View/manage assignments (Teacher & Student)
