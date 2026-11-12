@@ -493,6 +493,41 @@ async function main() {
     },
   });
 
+  await prisma.announcement.create({
+    data: {
+      title: 'Nursery stay and play',
+      content: 'Parents are welcome to stay for the first session this week. This notice is for Nursery only.',
+      scope: AnnouncementScope.CLASS,
+      classId: nurseryClass.id,
+      schoolId: nursery.id,
+      authorId: nurseryTeacher.id,
+      isPublished: true,
+    },
+  });
+
+  await prisma.announcement.create({
+    data: {
+      title: 'Year 3 reading morning',
+      content: 'Year 3 will visit the library on Friday morning. This notice is for Primary KS2.',
+      scope: AnnouncementScope.CLASS,
+      classId: year3.id,
+      schoolId: primary.id,
+      authorId: primaryTeacher.id,
+      isPublished: true,
+    },
+  });
+
+  await prisma.announcement.create({
+    data: {
+      title: 'Secondary sports afternoon',
+      content: 'Secondary pupils have sport on Thursday afternoon.',
+      scope: AnnouncementScope.SCHOOL,
+      schoolId: secondary.id,
+      authorId: secondaryHead.id,
+      isPublished: true,
+    },
+  });
+
   console.log('✅ Sample announcements created');
 
   // ── Sample Conversation ─────────────────────────────────────────────────────
@@ -627,6 +662,10 @@ async function main() {
     { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.MONDAY, startTime: '13:00', endTime: '13:50', room: 'Room 12' },
     { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.WEDNESDAY, startTime: '13:00', endTime: '13:50', room: 'Room 12' },
     { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id, day: DayOfWeek.FRIDAY, startTime: '13:00', endTime: '13:50', room: 'Room 12' },
+    { classId: nurseryClass.id, subjectId: earlyYears.id, teacherId: nurseryTeacherProfile.id, day: DayOfWeek.MONDAY, startTime: '09:00', endTime: '09:45', room: 'Nursery room' },
+    { classId: nurseryClass.id, subjectId: earlyYears.id, teacherId: nurseryTeacherProfile.id, day: DayOfWeek.WEDNESDAY, startTime: '09:00', endTime: '09:45', room: 'Nursery room' },
+    { classId: year3.id, subjectId: english.id, teacherId: primaryTeacherProfile.id, day: DayOfWeek.TUESDAY, startTime: '09:15', endTime: '10:05', room: 'Year 3' },
+    { classId: year3.id, subjectId: maths.id, teacherId: primaryTeacherProfile.id, day: DayOfWeek.THURSDAY, startTime: '11:00', endTime: '11:50', room: 'Year 3' },
   ];
 
   for (const slot of timetableData) {
@@ -665,6 +704,26 @@ async function main() {
       },
     });
   }
+
+  await prisma.attendanceRecord.create({
+    data: {
+      studentId: poppy.id,
+      classId: nurseryClass.id,
+      date: new Date('2026-03-02'),
+      status: AttendanceStatus.PRESENT,
+      markedById: nurseryTeacher.id,
+    },
+  });
+  await prisma.attendanceRecord.create({
+    data: {
+      studentId: studentProfileIsla.id,
+      classId: year3.id,
+      date: new Date('2026-03-02'),
+      status: AttendanceStatus.LATE,
+      remark: 'Arrived after the register',
+      markedById: primaryTeacher.id,
+    },
+  });
 
   console.log('✅ Sample attendance records created');
 
@@ -708,6 +767,20 @@ async function main() {
       overallGrade: 'A*',
       teacherComment: 'Amara is an outstanding student. Her work in Mathematics has been exemplary this term.',
       principalComment: 'Excellent achievement. We are very proud of your efforts.',
+    },
+  });
+
+  await prisma.reportCard.create({
+    data: {
+      studentId: studentProfileIsla.id,
+      termId: term2.id,
+      classId: year3.id,
+      totalScore: 78,
+      averageScore: 78,
+      subjectCount: 1,
+      overallGrade: 'B',
+      teacherComment: 'Isla is settling well in Year 3. Her reading is confident.',
+      principalComment: 'A good term in Primary.',
     },
   });
 

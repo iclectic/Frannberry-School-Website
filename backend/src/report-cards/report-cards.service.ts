@@ -3,12 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as PDFDocument from 'pdfkit';
 import { pupilName } from '../common/pupil-name';
+import { TeachingScopeService } from '../teaching/teaching-scope.service';
+import { matchesPlacement, recordsForPlacement } from '../teaching/scope';
+import { phaseRule } from '../school/phase-rules';
 
 @Injectable()
 export class ReportCardsService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
+    private teachingScope: TeachingScopeService,
   ) {}
 
   async generate(studentId: string, termId: string, teacherComment?: string, principalComment?: string) {
@@ -109,13 +113,13 @@ export class ReportCardsService {
       where: { studentId },
       include: {
         term: { include: { session: { select: { name: true } } } },
-        class: { select: { name: true, section: true } },
+        class: { select: { id: true, name: true, section: true, keyStage: true, schoolId: true, school: { select: { phase: true, name: true } } } },
       },
       orderBy: { generatedAt: 'desc' },
     });
   }
 
-  async getOne(id: string) {
+  async getOne(userId: string, role: string, id: string) {
     const card = await this.prisma.reportCard.findUnique({
       where: { id },
       include: {
@@ -126,10 +130,11 @@ export class ReportCardsService {
           },
         },
         term: { include: { session: { select: { name: true } } } },
-        class: { select: { name: true, section: true } },
+        class: { select: { id: true, name: true, section: true, keyStage: true, schoolId: true } },
       },
     });
     if (!card) throw new NotFoundException('Report card not found');
+    await this.assertCanReadCard(userId, role, card);
 
     const results = await this.prisma.result.findMany({
       where: { studentId: card.studentId, termId: card.termId },
@@ -141,39 +146,147 @@ export class ReportCardsService {
       orderBy: { minScore: 'desc' },
     });
 
-    return { ...card, results, gradingScales };
+    const name = pupilName(card.student);
+    return { ...card, pupilName: `${name.firstName} ${name.lastName}`.trim(), results, gradingScales };
   }
 
   async getMy(userId: string, role: string) {
-    if (role === 'STUDENT') {
-      const student = await this.prisma.studentProfile.findUnique({ where: { userId } });
-      if (!student) return [];
-      return this.getByStudent(student.id);
-    }
-
-    if (role === 'PARENT') {
-      const parent = await this.prisma.parentProfile.findUnique({
-        where: { userId },
-        include: { childLinks: { select: { studentId: true } } },
+    const scope = await this.teachingScope.forUser(userId, role);
+    if (scope.audience === 'all') {
+      const cards = await this.prisma.reportCard.findMany({
+        include: {
+          student: { include: { user: { select: { firstName: true, lastName: true } } } },
+          term: { include: { session: { select: { name: true } } } },
+          class: { select: { id: true, name: true, section: true, keyStage: true, schoolId: true, school: { select: { phase: true, name: true } } } },
+        },
+        orderBy: { generatedAt: 'desc' },
       });
-      if (!parent) return [];
-      const all = [];
-      for (const link of parent.childLinks) {
-        const cards = await this.getByStudent(link.studentId);
-        const student = await this.prisma.studentProfile.findUnique({
-          where: { id: link.studentId },
-          include: { user: { select: { firstName: true, lastName: true } } },
-        });
-        all.push({ student, reportCards: cards });
-      }
-      return all;
+      return {
+        groups: cards.map((card) => {
+          const name = pupilName(card.student);
+          const rule = phaseRule(card.class.school.phase);
+          return {
+            pupilId: card.studentId,
+            pupilName: `${name.firstName} ${name.lastName}`.trim(),
+            schoolName: rule?.name ?? card.class.school.name,
+            keyStage: card.class.keyStage,
+            className: card.class.name,
+            reportCards: [this.presentCard(card)],
+          };
+        }),
+      };
     }
 
-    return [];
+    const groups = [];
+    for (const placement of scope.placements.filter((item) => item.pupilId)) {
+      const cards = await this.getByStudent(placement.pupilId as string);
+      const reportCards = recordsForPlacement(
+        cards.map((card) => ({
+          ...this.presentCard(card),
+          schoolId: card.class.schoolId,
+          keyStage: card.class.keyStage,
+          classId: card.classId,
+        })),
+        placement,
+        'class',
+      );
+      groups.push({
+        pupilId: placement.pupilId,
+        pupilName: placement.pupilName,
+        schoolName: placement.schoolName,
+        phase: placement.phase,
+        keyStage: placement.keyStage,
+        className: placement.className,
+        reportCards,
+      });
+    }
+
+    if (!groups.length) {
+      const classIds = scope.placements.map((placement) => placement.classId).filter((id): id is string => !!id);
+      if (classIds.length) {
+        const cards = await this.prisma.reportCard.findMany({
+          where: { classId: { in: classIds } },
+          include: {
+            student: { include: { user: { select: { firstName: true, lastName: true } } } },
+            term: { include: { session: { select: { name: true } } } },
+            class: { select: { id: true, name: true, section: true, keyStage: true, schoolId: true, school: { select: { phase: true, name: true } } } },
+          },
+          orderBy: { generatedAt: 'desc' },
+        });
+        for (const placement of scope.placements) {
+          const reportCards = recordsForPlacement(
+            cards.map((card) => ({
+              ...this.presentCard(card),
+              pupilName: `${pupilName(card.student).firstName} ${pupilName(card.student).lastName}`.trim(),
+              schoolId: card.class.schoolId,
+              keyStage: card.class.keyStage,
+              classId: card.classId,
+            })),
+            placement,
+            'class',
+          );
+          if (!reportCards.length) continue;
+          groups.push({
+            pupilId: null,
+            pupilName: null,
+            schoolName: placement.schoolName,
+            phase: placement.phase,
+            keyStage: placement.keyStage,
+            className: placement.className,
+            reportCards,
+          });
+        }
+      }
+    }
+
+    return { groups };
   }
 
-  async generatePdf(id: string): Promise<Buffer> {
-    const data = await this.getOne(id);
+  private presentCard(card: {
+    id: string;
+    totalScore: number | null;
+    averageScore: number | null;
+    subjectCount: number | null;
+    overallGrade: string | null;
+    teacherComment: string | null;
+    principalComment: string | null;
+    generatedAt: Date;
+    term: { name: string; session: { name: string } };
+    class: { name: string; section: string | null; keyStage: string; school?: { phase: string; name: string } };
+  }) {
+    const rule = card.class.school ? phaseRule(card.class.school.phase) : undefined;
+    return {
+      id: card.id,
+      totalScore: card.totalScore,
+      averageScore: card.averageScore,
+      subjectCount: card.subjectCount,
+      overallGrade: card.overallGrade,
+      teacherComment: card.teacherComment,
+      principalComment: card.principalComment,
+      generatedAt: card.generatedAt,
+      term: card.term,
+      class: { name: card.class.name, section: card.class.section, keyStage: card.class.keyStage },
+      schoolName: rule?.name ?? card.class.school?.name ?? null,
+      keyStage: card.class.keyStage,
+    };
+  }
+
+  private async assertCanReadCard(userId: string, role: string, card: { studentId: string; classId: string; class?: { schoolId?: string; keyStage?: string } }) {
+    if (role === 'ADMIN') return;
+    const scope = await this.teachingScope.forUser(userId, role);
+    const schoolClass = card.class?.schoolId
+      ? { schoolId: card.class.schoolId, keyStage: card.class.keyStage ?? null, id: card.classId }
+      : await this.prisma.class.findUnique({ where: { id: card.classId } });
+    if (!schoolClass) throw new NotFoundException('Report card not found');
+    const record = { schoolId: schoolClass.schoolId, keyStage: schoolClass.keyStage, classId: card.classId };
+    const allowed = scope.placements.some((placement) =>
+      placement.pupilId === card.studentId || matchesPlacement(record, placement, 'class'),
+    );
+    if (!allowed) throw new NotFoundException('Report card not found');
+  }
+
+  async generatePdf(userId: string, role: string, id: string): Promise<Buffer> {
+    const data = await this.getOne(userId, role, id);
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });

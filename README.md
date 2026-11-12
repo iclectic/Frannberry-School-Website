@@ -2,7 +2,7 @@
 
 A full-stack portal for the Frannberry trust: **Nursery**, **Primary**, and **Secondary**. The stack is a **NestJS** API, a **Next.js** portal, **Prisma**, **PostgreSQL**, **Redis**, and **MinIO**.
 
-The build order is in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md). Steps 1–5 are done. Steps 6–8 are later.
+The build order is in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md). Steps 1–6 are done. Steps 7–8 are later.
 
 ## Architecture
 
@@ -62,7 +62,7 @@ cd frontend && npm run dev
 
 Each school has one headteacher (`HEAD`). That account is not the office `ADMIN` account. A class that pairs a school with a key stage it does not teach is rejected.
 
-David Smith (`david.smith@example.com`) is the parent of Poppy (Nursery, no login), Isla (Primary), and Oliver (Secondary). Poppy’s pupil record is the page a parent opens, because she cannot sign in. Each headteacher’s dashboard shows only their own school.
+David Smith (`david.smith@example.com`) is the parent of Poppy (Nursery, no login), Isla (Primary), and Oliver (Secondary). Poppy’s pupil record is the page a parent opens, because she cannot sign in. Each headteacher’s dashboard shows only their own school. Attendance, the timetable, announcements, and report cards follow the pupil’s school and key stage.
 
 ## Demo Credentials
 

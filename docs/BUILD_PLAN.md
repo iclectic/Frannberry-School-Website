@@ -1,6 +1,6 @@
 # Frannberry Schools build plan
 
-Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–5 are done. Steps 6–8 are not started.
+Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–6 are done. Steps 7–8 are not started.
 
 ## Done
 
@@ -54,11 +54,14 @@ Frannberry is one trust with three schools: Nursery, Primary, and Secondary. Thi
 - A parent can open a pupil record for their own child. A nursery child cannot sign in, so that record is how the parent sees the child’s school, class, and teacher.
 - `GET /api/v1/school/children/:studentId` is only for a `PARENT` linked to that child. Another parent receives “Child not found”.
 
-## Later
-
 ### Step 6. School-scoped teaching records
 
-Filter attendance, the timetable, announcements, and report cards by the pupil’s school and key stage.
+- Attendance, the timetable, and report cards for a pupil stay on that pupil’s own class, which must match their school and key stage. A record filed against another school or key stage is left out.
+- A class announcement is visible for the same school and key stage. A sibling class in that key stage can see it. Another key stage, including Reception when the notice is for Year 3, cannot.
+- A school announcement stays inside that school. A notice with no school is trust-wide and is listed separately.
+- A parent sees one group for each child. A headteacher sees only their school. A teacher sees the classes they teach. The office admin still sees every school.
+
+## Later
 
 ### Step 7. Admissions by school
 

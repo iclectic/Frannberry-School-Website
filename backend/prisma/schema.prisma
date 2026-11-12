@@ -373,6 +373,7 @@ model School {
   classes       Class[]
   students      StudentProfile[]
   conversations Conversation[]
+  announcements Announcement[]
 
   @@map("schools")
 }
@@ -639,6 +640,8 @@ model Announcement {
   title       String
   content     String
   scope       AnnouncementScope @default(SCHOOL)
+  schoolId    String?           @map("school_id")
+  school      School?           @relation(fields: [schoolId], references: [id])
   classId     String?           @map("class_id")
   class       Class?            @relation(fields: [classId], references: [id])
   authorId    String            @map("author_id")

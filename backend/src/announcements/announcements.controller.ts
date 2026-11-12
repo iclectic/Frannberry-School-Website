@@ -6,7 +6,6 @@ import {
   Delete,
   Body,
   Param,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
@@ -29,16 +28,18 @@ export class AnnouncementsController {
   @ApiOperation({ summary: 'Create an announcement' })
   async create(
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: Role,
     @Body()
     body: {
       title: string;
       content: string;
       scope: AnnouncementScope;
       classId?: string;
+      schoolId?: string;
       publishAt?: string;
     },
   ) {
-    return this.announcementsService.create(userId, body);
+    return this.announcementsService.create(userId, role, body);
   }
 
   @Get()
@@ -46,9 +47,8 @@ export class AnnouncementsController {
   async getAll(
     @CurrentUser('role') role: Role,
     @CurrentUser('id') userId: string,
-    @Query('classId') classId?: string,
   ) {
-    return this.announcementsService.getAll(role, userId, classId);
+    return this.announcementsService.getAll(role, userId);
   }
 
   @Patch(':id')
