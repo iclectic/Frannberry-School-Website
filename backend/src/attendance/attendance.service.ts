@@ -1,21 +1,46 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { pupilName } from '../common/pupil-name';
+import { TeachingScopeService } from '../teaching/teaching-scope.service';
+import { matchesPlacement, recordsForPlacement } from '../teaching/scope';
+import { phaseRule } from '../school/phase-rules';
 
 @Injectable()
 export class AttendanceService {
   constructor(
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
+    private teachingScope: TeachingScopeService,
   ) {}
+
+  async classesFor(userId: string, role: string) {
+    if (role === 'ADMIN') {
+      const classes = await this.prisma.class.findMany({
+        include: { school: { select: { phase: true, name: true } } },
+        orderBy: [{ year: 'asc' }, { name: 'asc' }],
+      });
+      return classes.map((schoolClass) => this.describeClass(schoolClass));
+    }
+    const scope = await this.teachingScope.forUser(userId, role);
+    const ids = scope.placements.map((placement) => placement.classId).filter((id): id is string => !!id);
+    if (!ids.length) return [];
+    const classes = await this.prisma.class.findMany({
+      where: { id: { in: ids } },
+      include: { school: { select: { phase: true, name: true } } },
+      orderBy: [{ year: 'asc' }, { name: 'asc' }],
+    });
+    return classes.map((schoolClass) => this.describeClass(schoolClass));
+  }
 
   async markAttendance(
     markedById: string,
+    role: string,
     classId: string,
     date: string,
     records: { studentId: string; status: string; remark?: string }[],
   ) {
+    await this.assertCanUseClass(markedById, role, classId);
     const results = [];
 
     for (const record of records) {
@@ -67,7 +92,8 @@ export class AttendanceService {
     return results;
   }
 
-  async getByClassAndDate(classId: string, date: string) {
+  async getByClassAndDate(userId: string, role: string, classId: string, date: string) {
+    await this.assertCanUseClass(userId, role, classId);
     const records = await this.prisma.attendanceRecord.findMany({
       where: { classId, date: new Date(date) },
       include: {
@@ -85,7 +111,13 @@ export class AttendanceService {
       orderBy: { user: { lastName: 'asc' } },
     });
 
-    return { records, students: allStudents };
+    return {
+      records,
+      students: allStudents.map((student) => {
+        const name = pupilName(student);
+        return { ...student, firstName: name.firstName, lastName: name.lastName };
+      }),
+    };
   }
 
   async getStudentAttendance(studentId: string, startDate?: string, endDate?: string) {
@@ -98,6 +130,7 @@ export class AttendanceService {
 
     const records = await this.prisma.attendanceRecord.findMany({
       where,
+      include: { class: { select: { id: true, schoolId: true, keyStage: true, name: true } } },
       orderBy: { date: 'desc' },
     });
 
@@ -114,30 +147,67 @@ export class AttendanceService {
   }
 
   async getMyAttendance(userId: string, role: string, startDate?: string, endDate?: string) {
-    if (role === 'STUDENT') {
-      const student = await this.prisma.studentProfile.findUnique({ where: { userId } });
-      if (!student) return { records: [], summary: { total: 0, present: 0, absent: 0, late: 0, excused: 0, rate: 0 } };
-      return this.getStudentAttendance(student.id, startDate, endDate);
-    }
-
-    if (role === 'PARENT') {
-      const parent = await this.prisma.parentProfile.findUnique({
-        where: { userId },
-        include: { childLinks: { select: { studentId: true } } },
+    const scope = await this.teachingScope.forUser(userId, role);
+    const placements = scope.placements.filter((placement) => placement.pupilId);
+    const groups = [];
+    for (const placement of placements) {
+      const data = await this.getStudentAttendance(placement.pupilId as string, startDate, endDate);
+      const records = recordsForPlacement(
+        data.records.map((record) => ({
+          ...record,
+          schoolId: record.class?.schoolId ?? null,
+          keyStage: record.class?.keyStage ?? null,
+          classId: record.classId,
+        })),
+        placement,
+        'class',
+      );
+      groups.push({
+        pupilId: placement.pupilId,
+        pupilName: placement.pupilName,
+        schoolName: placement.schoolName,
+        phase: placement.phase,
+        keyStage: placement.keyStage,
+        className: placement.className,
+        records,
+        summary: summarise(records),
       });
-      if (!parent) return [];
-      const results = [];
-      for (const link of parent.childLinks) {
-        const data = await this.getStudentAttendance(link.studentId, startDate, endDate);
-        const student = await this.prisma.studentProfile.findUnique({
-          where: { id: link.studentId },
-          include: { user: { select: { firstName: true, lastName: true } } },
-        });
-        results.push({ student, ...data });
-      }
-      return results;
     }
-
-    return [];
+    return { groups };
   }
+
+  private async assertCanUseClass(userId: string, role: string, classId: string) {
+    if (role === 'ADMIN') return;
+    const scope = await this.teachingScope.forUser(userId, role);
+    const schoolClass = await this.prisma.class.findUnique({ where: { id: classId } });
+    if (!schoolClass) throw new NotFoundException('Class not found');
+    const allowed = scope.placements.some((placement) =>
+      matchesPlacement(
+        { schoolId: schoolClass.schoolId, keyStage: schoolClass.keyStage, classId: schoolClass.id },
+        placement,
+        'class',
+      ),
+    );
+    if (!allowed) throw new ForbiddenException('This class is outside your school');
+  }
+
+  private describeClass(schoolClass: { id: string; name: string; section: string | null; keyStage: string; school: { phase: string; name: string } }) {
+    const rule = phaseRule(schoolClass.school.phase);
+    return {
+      id: schoolClass.id,
+      name: schoolClass.name,
+      section: schoolClass.section,
+      keyStage: schoolClass.keyStage,
+      schoolName: rule?.name ?? schoolClass.school.name,
+    };
+  }
+}
+
+function summarise(records: { status: string }[]) {
+  const total = records.length;
+  const present = records.filter((record) => record.status === 'PRESENT').length;
+  const absent = records.filter((record) => record.status === 'ABSENT').length;
+  const late = records.filter((record) => record.status === 'LATE').length;
+  const excused = records.filter((record) => record.status === 'EXCUSED').length;
+  return { total, present, absent, late, excused, rate: total > 0 ? Math.round((present / total) * 100) : 0 };
 }

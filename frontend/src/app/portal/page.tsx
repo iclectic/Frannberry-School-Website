@@ -32,6 +32,9 @@ function AnnouncementCard({ announcement }: { announcement: any }) {
         <span className="shrink-0 rounded-full bg-brand-50 dark:bg-brand-900 px-2 py-0.5 text-xs font-medium text-brand-700 dark:text-brand-200">{announcement.scope}</span>
       </div>
       <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{announcement.content}</p>
+      {(announcement.schoolName || announcement.keyStage) && (
+        <p className="mt-2 text-xs text-gray-500">{announcement.schoolName}{announcement.keyStage ? ` · ${announcement.keyStage}` : ''}{announcement.className ? ` · ${announcement.className}` : ''}</p>
+      )}
       <time className="mt-2 block text-xs text-gray-400">{new Date(announcement.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</time>
     </div>
   );
@@ -51,7 +54,10 @@ export default function PortalDashboard() {
     if (!token) return;
 
     apiFetch('/announcements', { token })
-      .then((data) => setAnnouncements(Array.isArray(data) ? data.slice(0, 5) : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.announcements;
+        setAnnouncements(Array.isArray(list) ? list.slice(0, 5) : []);
+      })
       .catch(() => {});
 
     apiFetch('/users/profile', { token })

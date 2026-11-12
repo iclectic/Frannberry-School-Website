@@ -16,7 +16,7 @@ export default function PortalReportCardsPage() {
   useEffect(() => {
     if (!token) return;
     apiFetch('/report-cards/my', { token })
-      .then((d) => setData(d))
+      .then((d) => setData(d?.groups ? d : { groups: Array.isArray(d) ? [{ reportCards: d }] : [] }))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [token]);
@@ -60,7 +60,7 @@ export default function PortalReportCardsPage() {
                     {card.term?.name}
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{card.term?.session?.name}</p>
-                  <p className="text-xs text-gray-400">{card.class?.name}{card.class?.section ? ` ${card.class.section}` : ''}</p>
+                  <p className="text-xs text-gray-400">{[card.schoolName, card.keyStage || card.class?.keyStage, card.class?.name].filter(Boolean).join(' · ')}</p>
                 </div>
                 {card.overallGrade && (
                   <span className={`rounded-full px-3 py-1 text-sm font-bold ${gradeColour(card.overallGrade)}`}>
@@ -111,7 +111,7 @@ export default function PortalReportCardsPage() {
           <div className="mb-6 flex items-start justify-between">
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                {selectedCard.student?.user?.firstName} {selectedCard.student?.user?.lastName}
+                {selectedCard.pupilName || `${selectedCard.student?.firstName || selectedCard.student?.user?.firstName || ''} ${selectedCard.student?.lastName || selectedCard.student?.user?.lastName || ''}`.trim()}
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {selectedCard.class?.name}{selectedCard.class?.section ? ` ${selectedCard.class.section}` : ''} — {selectedCard.term?.name} ({selectedCard.term?.session?.name})
@@ -197,18 +197,15 @@ export default function PortalReportCardsPage() {
         <p className="text-sm text-gray-500">Loading…</p>
       ) : detailLoading ? (
         <p className="text-sm text-gray-500">Loading report card…</p>
-      ) : user?.role === 'PARENT' && Array.isArray(data) ? (
-        data.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">No report cards available.</p>
-        ) : (
-          data.map((child: any, i: number) => (
-            <div key={i}>
-              {renderCardList(child.reportCards || [], `${child.student?.user?.firstName} ${child.student?.user?.lastName}`)}
-            </div>
-          ))
-        )
-      ) : Array.isArray(data) ? (
-        renderCardList(data)
+      ) : data?.groups?.length ? (
+        data.groups.map((group: any) => (
+          <div key={`${group.pupilId ?? group.className}-${group.keyStage}`}>
+            {renderCardList(
+              group.reportCards || [],
+              [group.pupilName, group.schoolName, group.keyStage, group.className].filter(Boolean).join(' · '),
+            )}
+          </div>
+        ))
       ) : (
         <p className="text-sm text-gray-500 dark:text-gray-400">No report cards available.</p>
       )}

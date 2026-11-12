@@ -14,9 +14,11 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('Timetable')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('timetable')
 export class TimetableController {
   constructor(private timetableService: TimetableService) {}
@@ -51,8 +53,8 @@ export class TimetableController {
   }
 
   @Get('class/:classId')
-  getByClass(@Param('classId') classId: string) {
-    return this.timetableService.getClassTimetable(classId);
+  getByClass(@CurrentUser() user: any, @Param('classId') classId: string) {
+    return this.timetableService.getClassTimetable(user.id, user.role, classId);
   }
 
   @Get('teacher/:teacherId')
@@ -62,12 +64,6 @@ export class TimetableController {
 
   @Get('my')
   getMy(@CurrentUser() user: any) {
-    if (user.role === 'STUDENT') {
-      return this.timetableService.getStudentTimetable(user.id);
-    }
-    if (user.role === 'TEACHER') {
-      return this.timetableService.getTeacherTimetable(user.teacherProfileId);
-    }
-    return [];
+    return this.timetableService.getMy(user.id, user.role);
   }
 }

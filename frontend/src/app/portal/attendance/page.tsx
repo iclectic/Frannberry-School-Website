@@ -17,13 +17,13 @@ export default function PortalAttendancePage() {
   const [markingStatus, setMarkingStatus] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'ADMIN';
+  const canMark = user?.role === 'TEACHER' || user?.role === 'ADMIN' || user?.role === 'HEAD';
 
   useEffect(() => {
     if (!token || !user) return;
 
-    if (isTeacherOrAdmin) {
-      apiFetch('/admin/classes', { token })
+    if (canMark) {
+      apiFetch('/attendance/classes', { token })
         .then((d) => setClasses(Array.isArray(d) ? d : []))
         .catch(() => setClasses([]))
         .finally(() => setLoading(false));
@@ -33,7 +33,7 @@ export default function PortalAttendancePage() {
         .catch(() => setData(null))
         .finally(() => setLoading(false));
     }
-  }, [token, user, isTeacherOrAdmin]);
+  }, [token, user, canMark]);
 
   const loadClassAttendance = async () => {
     if (!selectedClass || !date || !token) return;
@@ -89,7 +89,7 @@ export default function PortalAttendancePage() {
   };
 
   // ─── Student / Parent view ────────────────────────────────────────────
-  if (!isTeacherOrAdmin) {
+  if (!canMark) {
     const renderStudentAttendance = (attendanceData: any, studentName?: string) => {
       const summary = attendanceData?.summary;
       const records = attendanceData?.records || [];
@@ -141,17 +141,16 @@ export default function PortalAttendancePage() {
         <h1 className="mb-6 text-2xl font-bold text-gray-900">Attendance</h1>
         {loading ? (
           <p className="text-sm text-gray-500">Loading…</p>
-        ) : user?.role === 'PARENT' && Array.isArray(data) ? (
-          data.length === 0 ? (
-            <p className="text-sm text-gray-500">No attendance data available.</p>
-          ) : (
-            data.map((child: any, i: number) => (
-              <div key={i}>
-                {renderStudentAttendance(child, `${child.student?.user?.firstName} ${child.student?.user?.lastName}`)}
-              </div>
-            ))
-          )
-        ) : data ? (
+        ) : data?.groups?.length ? (
+          data.groups.map((group: any) => (
+            <div key={group.pupilId || group.className}>
+              {renderStudentAttendance(
+                group,
+                [group.pupilName, group.schoolName, group.keyStage, group.className].filter(Boolean).join(' · '),
+              )}
+            </div>
+          ))
+        ) : data?.records ? (
           renderStudentAttendance(data)
         ) : (
           <p className="text-sm text-gray-500">No attendance data available.</p>
@@ -177,7 +176,7 @@ export default function PortalAttendancePage() {
             >
               <option value="">Select class…</option>
               {classes.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}{c.section ? ` ${c.section}` : ''}</option>
+                <option key={c.id} value={c.id}>{c.schoolName ? `${c.schoolName} · ${c.keyStage} · ` : ''}{c.name}{c.section ? ` ${c.section}` : ''}</option>
               ))}
             </select>
             <input
@@ -202,7 +201,7 @@ export default function PortalAttendancePage() {
                     {classData.students.map((s: any) => (
                       <tr key={s.id} className="hover:bg-gray-50">
                         <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
-                          {s.user.firstName} {s.user.lastName}
+                          {s.firstName} {s.lastName}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3">
                           <div className="flex gap-1.5">

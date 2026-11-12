@@ -13,9 +13,11 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('Report Cards')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('report-cards')
 export class ReportCardsController {
   constructor(private reportCardsService: ReportCardsService) {}
@@ -43,13 +45,13 @@ export class ReportCardsController {
   }
 
   @Get(':id')
-  getOne(@Param('id') id: string) {
-    return this.reportCardsService.getOne(id);
+  getOne(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.reportCardsService.getOne(user.id, user.role, id);
   }
 
   @Get(':id/pdf')
-  async downloadPdf(@Param('id') id: string, @Res() res: Response) {
-    const pdfBuffer = await this.reportCardsService.generatePdf(id);
+  async downloadPdf(@CurrentUser() user: any, @Param('id') id: string, @Res() res: Response) {
+    const pdfBuffer = await this.reportCardsService.generatePdf(user.id, user.role, id);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="report-card-${id}.pdf"`,
