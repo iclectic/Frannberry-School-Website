@@ -28,6 +28,7 @@ import { ReportsModule } from './reports/reports.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { SchoolModule } from './school/school.module';
 import { TeachingModule } from './teaching/teaching.module';
+import { AdmissionsModule } from './admissions/admissions.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { TeachingModule } from './teaching/teaching.module';
     PermissionsModule,
     SchoolModule,
     TeachingModule,
+    AdmissionsModule,
   ],
   providers: [
     {
