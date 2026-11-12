@@ -36,7 +36,17 @@ export function useSocket() {
 
   const sendMessage = useCallback(
     (conversationId: string, content: string) => {
-      socketRef.current?.emit('sendMessage', { conversationId, content });
+      return new Promise<any>((resolve, reject) => {
+        const socket = socketRef.current;
+        if (!socket?.connected) {
+          reject(new Error('Not connected'));
+          return;
+        }
+        socket.timeout(8000).emit('sendMessage', { conversationId, content }, (err: Error | null, response: any) => {
+          if (err) reject(err);
+          else resolve(response);
+        });
+      });
     },
     [],
   );

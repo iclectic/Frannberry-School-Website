@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { pupilName } from '../common/pupil-name';
 
 let invoiceCounter = 1000;
 
@@ -85,14 +86,16 @@ export class FeesService {
       });
       invoices.push(invoice);
 
-      // Notify student
-      await this.notificationsService.create({
-        userId: student.user.id,
-        type: 'FEE',
-        title: 'New Fee Invoice',
-        body: `An invoice of £${template.amount.toFixed(2)} for "${template.name}" has been issued.`,
-        link: '/portal/fees',
-      });
+      const name = pupilName(student);
+      if (student.userId) {
+        await this.notificationsService.create({
+          userId: student.userId,
+          type: 'FEE',
+          title: 'New Fee Invoice',
+          body: `An invoice of £${template.amount.toFixed(2)} for "${template.name}" has been issued.`,
+          link: '/portal/fees',
+        });
+      }
 
       // Notify parents
       const parentLinks = await this.prisma.parentStudent.findMany({
@@ -104,7 +107,7 @@ export class FeesService {
           userId: link.parent.userId,
           type: 'FEE',
           title: 'New Fee Invoice',
-          body: `An invoice of £${template.amount.toFixed(2)} for "${template.name}" has been issued for ${student.user.firstName} ${student.user.lastName}.`,
+          body: `An invoice of £${template.amount.toFixed(2)} for "${template.name}" has been issued for ${name.firstName} ${name.lastName}.`,
           link: '/portal/fees',
         });
       }

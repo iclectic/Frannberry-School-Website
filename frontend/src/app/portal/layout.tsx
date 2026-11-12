@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/lib/theme-context';
@@ -83,6 +83,12 @@ const navByRole: Record<string, { href: string; label: string }[]> = {
     { href: '/portal/events', label: 'Events' },
     { href: '/portal/announcements', label: 'Announcements' },
     { href: '/portal/notifications', label: 'Notifications' },
+    { href: '/portal/settings', label: 'Settings' },
+  ],
+  HEAD: [
+    { href: '/portal', label: 'Dashboard' },
+    { href: '/portal/announcements', label: 'Announcements' },
+    { href: '/portal/attendance', label: 'Attendance' },
     { href: '/portal/messages', label: 'Messages' },
     { href: '/portal/settings', label: 'Settings' },
   ],
@@ -92,6 +98,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const { user, loading, logout } = useAuth();
   const { theme, resolved, setTheme } = useTheme();
   const router = useRouter();
+  const pathname = usePathname();
 
   function cycleTheme() {
     const next: Record<string, 'light' | 'dark' | 'system'> = { light: 'dark', dark: 'system', system: 'light' };
@@ -104,6 +111,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
   }, [loading, user, router]);
 
+  useEffect(() => {
+    if (!loading && user?.mfaSetupRequired && pathname && !pathname.startsWith('/portal/settings/mfa')) {
+      router.replace('/portal/settings/mfa');
+    }
+  }, [loading, user, pathname, router]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -114,7 +127,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   if (!user) return null;
 
-  const links = navByRole[user.role] || navByRole.STAFF;
+  const links = user.mfaSetupRequired
+    ? [{ href: '/portal/settings/mfa', label: 'Authenticator' }]
+    : (navByRole[user.role] || navByRole.STAFF);
 
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950">

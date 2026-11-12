@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { pupilName } from '../common/pupil-name';
 
 @Injectable()
 export class ReportsService {
@@ -144,7 +145,7 @@ export class ReportsService {
 
     const header = 'Date,Student Name,Email,Class,Status,Remark';
     const rows = records.map((r) =>
-      `${r.date.toISOString().split('T')[0]},${r.student.user.firstName} ${r.student.user.lastName},${r.student.user.email},${r.class.name},${r.status},${r.remark || ''}`,
+      `${r.date.toISOString().split('T')[0]},${pupilName(r.student).firstName} ${pupilName(r.student).lastName},${pupilName(r.student).email},${r.class.name},${r.status},${r.remark || ''}`,
     );
 
     return [header, ...rows].join('\n');

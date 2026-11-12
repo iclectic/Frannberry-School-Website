@@ -3,11 +3,13 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { sessionNeedsMfaSetup } from '../account-security';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  scope?: 'full' | 'mfa-setup';
 }
 
 @Injectable()
@@ -41,6 +43,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Account is inactive or not found');
     }
 
-    return user;
+    const mfaSetupOnly = payload.scope === 'mfa-setup' || sessionNeedsMfaSetup(user.role, user.mfaEnabled);
+    return { ...user, mfaSetupOnly };
   }
 }

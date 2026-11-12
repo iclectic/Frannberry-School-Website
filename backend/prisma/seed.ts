@@ -1,4 +1,4 @@
-import { PrismaClient, Role, AssessmentType, AnnouncementScope, DayOfWeek, AttendanceStatus, EventType } from '@prisma/client';
+import { PrismaClient, Role, AssessmentType, AnnouncementScope, DayOfWeek, AttendanceStatus, EventType, KeyStage, SchoolPhase, ConversationPurpose } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -37,9 +37,13 @@ async function main() {
   await prisma.galleryImage.deleteMany();
   await prisma.blogPost.deleteMany();
   await prisma.invite.deleteMany();
+  await prisma.backupCode.deleteMany();
+  await prisma.passwordReset.deleteMany();
   await prisma.refreshToken.deleteMany();
+  await prisma.headProfile.deleteMany();
   await prisma.subject.deleteMany();
   await prisma.class.deleteMany();
+  await prisma.school.deleteMany();
   await prisma.user.deleteMany();
 
   // ── Hash passwords ──────────────────────────────────────────────────────────
@@ -48,6 +52,7 @@ async function main() {
   const studentPass = await bcrypt.hash('Student123!', SALT_ROUNDS);
   const parentPass = await bcrypt.hash('Parent123!', SALT_ROUNDS);
   const staffPass = await bcrypt.hash('Staff123!', SALT_ROUNDS);
+  const headPass = await bcrypt.hash('Head123!', SALT_ROUNDS);
 
   // ── Users ───────────────────────────────────────────────────────────────────
   const admin = await prisma.user.create({
@@ -60,6 +65,24 @@ async function main() {
     },
   });
   console.log(`✅ Admin: ${admin.email} / Admin123!`);
+
+  const nurseryHead = await prisma.user.create({
+    data: { email: 'helen.green@frannberry.school', passwordHash: headPass, firstName: 'Helen', lastName: 'Green', role: Role.HEAD },
+  });
+  const primaryHead = await prisma.user.create({
+    data: { email: 'priya.shah@frannberry.school', passwordHash: headPass, firstName: 'Priya', lastName: 'Shah', role: Role.HEAD },
+  });
+  const secondaryHead = await prisma.user.create({
+    data: { email: 'samuel.adeyemi@frannberry.school', passwordHash: headPass, firstName: 'Samuel', lastName: 'Adeyemi', role: Role.HEAD },
+  });
+  console.log('✅ Heads: helen.green, priya.shah, samuel.adeyemi @frannberry.school / Head123!');
+
+  const nurseryTeacher = await prisma.user.create({
+    data: { email: 'anna.brooks@frannberry.school', passwordHash: teacherPass, firstName: 'Anna', lastName: 'Brooks', role: Role.TEACHER },
+  });
+  const primaryTeacher = await prisma.user.create({
+    data: { email: 'mei.chen@frannberry.school', passwordHash: teacherPass, firstName: 'Mei', lastName: 'Chen', role: Role.TEACHER },
+  });
 
   const teacher1 = await prisma.user.create({
     data: {
@@ -80,7 +103,17 @@ async function main() {
       role: Role.TEACHER,
     },
   });
-  console.log(`✅ Teachers: j.williams@frannberry.school, s.patel@frannberry.school / Teacher123!`);
+  console.log('✅ Teachers: anna.brooks, mei.chen, j.williams, s.patel @frannberry.school / Teacher123!');
+
+  const primaryStudent = await prisma.user.create({
+    data: {
+      email: 'isla.smith@frannberry.school',
+      passwordHash: studentPass,
+      firstName: 'Isla',
+      lastName: 'Smith',
+      role: Role.STUDENT,
+    },
+  });
 
   const student1 = await prisma.user.create({
     data: {
@@ -111,7 +144,8 @@ async function main() {
       role: Role.STUDENT,
     },
   });
-  console.log(`✅ Students: oliver.smith, amara.jones, liam.brown @frannberry.school / Student123!`);
+  console.log('✅ Pupils who can sign in: isla.smith, oliver.smith, amara.jones, liam.brown @frannberry.school / Student123!');
+  console.log('✅ Nursery pupil Poppy Smith has a record and no login');
 
   const parent1 = await prisma.user.create({
     data: {
@@ -145,25 +179,78 @@ async function main() {
   });
   console.log(`✅ Staff: r.okonkwo@frannberry.school / Staff123!`);
 
+  // ── Schools and headteachers ────────────────────────────────────────────────
+  const nursery = await prisma.school.create({
+    data: { phase: SchoolPhase.NURSERY, name: 'Nursery', ageMin: 2, ageMax: 4 },
+  });
+  const primary = await prisma.school.create({
+    data: { phase: SchoolPhase.PRIMARY, name: 'Primary', ageMin: 4, ageMax: 11 },
+  });
+  const secondary = await prisma.school.create({
+    data: { phase: SchoolPhase.SECONDARY, name: 'Secondary', ageMin: 11, ageMax: 18 },
+  });
+
+  await prisma.headProfile.create({ data: { userId: nurseryHead.id, schoolId: nursery.id, employeeId: 'HEAD-N' } });
+  await prisma.headProfile.create({ data: { userId: primaryHead.id, schoolId: primary.id, employeeId: 'HEAD-P' } });
+  await prisma.headProfile.create({ data: { userId: secondaryHead.id, schoolId: secondary.id, employeeId: 'HEAD-S' } });
+  console.log('✅ Nursery, Primary, and Secondary, each with one headteacher');
+
   // ── Role Profiles ───────────────────────────────────────────────────────────
+  const nurseryTeacherProfile = await prisma.teacherProfile.create({
+    data: { userId: nurseryTeacher.id, employeeId: 'TCH-N01', department: 'Early Years', qualification: 'EYTS' },
+  });
+  const primaryTeacherProfile = await prisma.teacherProfile.create({
+    data: { userId: primaryTeacher.id, employeeId: 'TCH-P01', department: 'Primary', qualification: 'PGCE Primary' },
+  });
   const teacherProfile1 = await prisma.teacherProfile.create({
     data: { userId: teacher1.id, employeeId: 'TCH-001', department: 'Mathematics', qualification: 'MSc Mathematics' },
   });
-
   const teacherProfile2 = await prisma.teacherProfile.create({
     data: { userId: teacher2.id, employeeId: 'TCH-002', department: 'English', qualification: 'MA English Literature' },
   });
 
+  const studentProfileIsla = await prisma.studentProfile.create({
+    data: {
+      userId: primaryStudent.id,
+      firstName: 'Isla',
+      lastName: 'Smith',
+      admissionNo: 'STU-2026-P01',
+      dateOfBirth: new Date('2018-05-02'),
+      schoolId: primary.id,
+    },
+  });
+
   const studentProfile1 = await prisma.studentProfile.create({
-    data: { userId: student1.id, admissionNo: 'STU-2026-001', dateOfBirth: new Date('2013-03-15') },
+    data: {
+      userId: student1.id,
+      firstName: 'Oliver',
+      lastName: 'Smith',
+      admissionNo: 'STU-2026-001',
+      dateOfBirth: new Date('2013-03-15'),
+      schoolId: secondary.id,
+    },
   });
 
   const studentProfile2 = await prisma.studentProfile.create({
-    data: { userId: student2.id, admissionNo: 'STU-2026-002', dateOfBirth: new Date('2013-07-22') },
+    data: {
+      userId: student2.id,
+      firstName: 'Amara',
+      lastName: 'Jones',
+      admissionNo: 'STU-2026-002',
+      dateOfBirth: new Date('2013-07-22'),
+      schoolId: secondary.id,
+    },
   });
 
   const studentProfile3 = await prisma.studentProfile.create({
-    data: { userId: student3.id, admissionNo: 'STU-2026-003', dateOfBirth: new Date('2013-11-01') },
+    data: {
+      userId: student3.id,
+      firstName: 'Liam',
+      lastName: 'Brown',
+      admissionNo: 'STU-2026-003',
+      dateOfBirth: new Date('2013-11-01'),
+      schoolId: secondary.id,
+    },
   });
 
   const parentProfile1 = await prisma.parentProfile.create({
@@ -175,24 +262,8 @@ async function main() {
   });
 
   await prisma.staffProfile.create({
-    data: { userId: staff1.id, employeeId: 'STF-001', department: 'Administration', position: 'School Secretary', permissions: ['VIEW_STUDENTS', 'VIEW_RESULTS'] },
+    data: { userId: staff1.id, employeeId: 'STF-001', department: 'Administration', position: 'Trust Office Secretary', permissions: ['VIEW_STUDENTS', 'VIEW_RESULTS'] },
   });
-
-  // ── Parent-Student Links ────────────────────────────────────────────────────
-  await prisma.parentStudent.create({
-    data: { parentId: parentProfile1.id, studentId: studentProfile1.id, relation: 'Father' },
-  });
-
-  await prisma.parentStudent.create({
-    data: { parentId: parentProfile2.id, studentId: studentProfile2.id, relation: 'Mother' },
-  });
-
-  // Parent1 is also linked to student3 (e.g. sibling)
-  await prisma.parentStudent.create({
-    data: { parentId: parentProfile1.id, studentId: studentProfile3.id, relation: 'Father' },
-  });
-
-  console.log('✅ Parent-student links created');
 
   // ── Academic Structure ──────────────────────────────────────────────────────
   const session = await prisma.academicSession.create({
@@ -214,22 +285,48 @@ async function main() {
   console.log('✅ Academic session & terms created');
 
   // ── Classes ─────────────────────────────────────────────────────────────────
+  const nurseryClass = await prisma.class.create({
+    data: { name: 'Nursery', year: 0, section: 'A', capacity: 20, schoolId: nursery.id, keyStage: KeyStage.EYFS },
+  });
+  const reception = await prisma.class.create({
+    data: { name: 'Reception', year: 0, section: 'A', capacity: 30, schoolId: primary.id, keyStage: KeyStage.EYFS },
+  });
+  const year3 = await prisma.class.create({
+    data: { name: 'Year 3', year: 3, section: 'A', capacity: 30, schoolId: primary.id, keyStage: KeyStage.KS2 },
+  });
   const class7A = await prisma.class.create({
-    data: { name: 'Year 7A', year: 7, section: 'A', capacity: 30 },
+    data: { name: 'Year 7A', year: 7, section: 'A', capacity: 30, schoolId: secondary.id, keyStage: KeyStage.KS3 },
   });
-
   const class7B = await prisma.class.create({
-    data: { name: 'Year 7B', year: 7, section: 'B', capacity: 30 },
+    data: { name: 'Year 7B', year: 7, section: 'B', capacity: 30, schoolId: secondary.id, keyStage: KeyStage.KS3 },
   });
 
-  // Assign students to classes
+  const poppy = await prisma.studentProfile.create({
+    data: {
+      firstName: 'Poppy',
+      lastName: 'Smith',
+      admissionNo: 'STU-2026-N01',
+      dateOfBirth: new Date('2023-06-10'),
+      schoolId: nursery.id,
+      classId: nurseryClass.id,
+    },
+  });
+
+  await prisma.studentProfile.update({ where: { id: studentProfileIsla.id }, data: { classId: year3.id } });
   await prisma.studentProfile.update({ where: { id: studentProfile1.id }, data: { classId: class7A.id } });
   await prisma.studentProfile.update({ where: { id: studentProfile2.id }, data: { classId: class7A.id } });
   await prisma.studentProfile.update({ where: { id: studentProfile3.id }, data: { classId: class7B.id } });
 
-  console.log('✅ Classes created and students assigned');
+  // David Smith has one child in each school. Poppy cannot sign in.
+  await prisma.parentStudent.create({ data: { parentId: parentProfile1.id, studentId: poppy.id, relation: 'Father' } });
+  await prisma.parentStudent.create({ data: { parentId: parentProfile1.id, studentId: studentProfileIsla.id, relation: 'Father' } });
+  await prisma.parentStudent.create({ data: { parentId: parentProfile1.id, studentId: studentProfile1.id, relation: 'Father' } });
+  await prisma.parentStudent.create({ data: { parentId: parentProfile2.id, studentId: studentProfile2.id, relation: 'Mother' } });
+  console.log('✅ David Smith linked to Poppy (Nursery), Isla (Primary), and Oliver (Secondary)');
+  console.log(`✅ Reception (${reception.name}) stays in Primary and is still EYFS`);
 
   // ── Subjects ────────────────────────────────────────────────────────────────
+  const earlyYears = await prisma.subject.create({ data: { name: 'Communication and Language', code: 'CLL' } });
   const maths = await prisma.subject.create({ data: { name: 'Mathematics', code: 'MATHS' } });
   const english = await prisma.subject.create({ data: { name: 'English Language', code: 'ENG' } });
   const science = await prisma.subject.create({ data: { name: 'Science', code: 'SCI' } });
@@ -237,14 +334,21 @@ async function main() {
   console.log('✅ Subjects created');
 
   // ── Class-Subject-Teacher assignments ───────────────────────────────────────
+  await prisma.classSubjectTeacher.create({
+    data: { classId: nurseryClass.id, subjectId: earlyYears.id, teacherId: nurseryTeacherProfile.id },
+  });
+  await prisma.classSubjectTeacher.create({
+    data: { classId: year3.id, subjectId: maths.id, teacherId: primaryTeacherProfile.id },
+  });
+  await prisma.classSubjectTeacher.create({
+    data: { classId: year3.id, subjectId: english.id, teacherId: primaryTeacherProfile.id },
+  });
   const cst1 = await prisma.classSubjectTeacher.create({
     data: { classId: class7A.id, subjectId: maths.id, teacherId: teacherProfile1.id },
   });
-
   await prisma.classSubjectTeacher.create({
     data: { classId: class7A.id, subjectId: english.id, teacherId: teacherProfile2.id },
   });
-
   await prisma.classSubjectTeacher.create({
     data: { classId: class7B.id, subjectId: maths.id, teacherId: teacherProfile1.id },
   });
@@ -395,6 +499,9 @@ async function main() {
   const conversation = await prisma.conversation.create({
     data: {
       title: null,
+      purpose: ConversationPurpose.PARENT_TEACHER,
+      schoolId: secondary.id,
+      studentId: studentProfile1.id,
       participants: {
         create: [
           { userId: parent1.id },
@@ -442,7 +549,7 @@ async function main() {
       content: `<p>Dear Frannberry School Community,</p>
 <p>We are thrilled to welcome everyone to the start of a new academic year. This year promises to be filled with exciting learning opportunities, enriching experiences, and continued growth for all our pupils.</p>
 <p>Our dedicated team of teachers and staff have been working tirelessly over the summer to prepare an engaging curriculum that challenges and inspires. We look forward to partnering with parents and carers to ensure every child reaches their full potential.</p>
-<p>Warm regards,<br/>Mrs Margaret Thornton<br/>Head Teacher</p>`,
+<p>Warm regards,<br/>Mrs Margaret Thornton<br/>Trust Office</p>`,
       authorId: admin.id,
       isPublished: true,
       publishedAt: new Date('2025-09-01'),
@@ -693,15 +800,14 @@ async function main() {
   console.log('═══════════════════════════════════════════════');
   console.log('  LOGIN CREDENTIALS');
   console.log('═══════════════════════════════════════════════');
-  console.log('  Admin:   admin@frannberry.school / Admin123!');
-  console.log('  Teacher: j.williams@frannberry.school / Teacher123!');
-  console.log('  Teacher: s.patel@frannberry.school / Teacher123!');
-  console.log('  Student: oliver.smith@frannberry.school / Student123!');
-  console.log('  Student: amara.jones@frannberry.school / Student123!');
-  console.log('  Student: liam.brown@frannberry.school / Student123!');
-  console.log('  Parent:  david.smith@example.com / Parent123!');
-  console.log('  Parent:  fatima.jones@example.com / Parent123!');
-  console.log('  Staff:   r.okonkwo@frannberry.school / Staff123!');
+  console.log('  Admin:    admin@frannberry.school / Admin123!  (MFA setup required)');
+  console.log('  Heads:    helen.green, priya.shah, samuel.adeyemi @frannberry.school / Head123!');
+  console.log('  Teachers: anna.brooks, mei.chen, j.williams, s.patel @frannberry.school / Teacher123!');
+  console.log('  Pupils:   isla.smith, oliver.smith, amara.jones, liam.brown @frannberry.school / Student123!');
+  console.log('  Nursery:  Poppy Smith has no login');
+  console.log('  Parent:   david.smith@example.com / Parent123!');
+  console.log('  Parent:   fatima.jones@example.com / Parent123!');
+  console.log('  Staff:    r.okonkwo@frannberry.school / Staff123!');
   console.log('═══════════════════════════════════════════════\n');
 }
 

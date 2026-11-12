@@ -2,10 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { Role } from '@prisma/client';
+import { KeyStage, Role } from '@prisma/client';
+import { keyStageFitsSchool, placementError, pupilCanLogin } from '../school/phase-rules';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -78,6 +80,8 @@ export class AdminService {
       await this.prisma.studentProfile.create({
         data: {
           userId: user.id,
+          firstName: data.firstName,
+          lastName: data.lastName,
           admissionNo: `STU-${uuidv4().slice(0, 8).toUpperCase()}`,
         },
       });
@@ -151,8 +155,32 @@ export class AdminService {
 
   // ── Class & Subject Management ──────────────────────────────────────────────
 
-  async createClass(adminId: string, data: { name: string; year: number; section?: string; capacity?: number }) {
-    const cls = await this.prisma.class.create({ data });
+  async createClass(
+    adminId: string,
+    data: { name: string; year: number; section?: string; capacity?: number; schoolId: string; keyStage: KeyStage },
+  ) {
+    if (!data.schoolId || !data.keyStage) {
+      throw new BadRequestException('A class needs a school and a key stage');
+    }
+    const school = await this.prisma.school.findUnique({ where: { id: data.schoolId } });
+    if (!school) throw new NotFoundException('School not found');
+    const error = placementError(school.phase, data.keyStage);
+    if (error) {
+      throw new BadRequestException(
+        `${error} ${school.phase === 'PRIMARY' ? 'Reception stays in Primary and is still EYFS.' : ''}`.trim(),
+      );
+    }
+
+    const cls = await this.prisma.class.create({
+      data: {
+        name: data.name,
+        year: data.year,
+        section: data.section,
+        capacity: data.capacity,
+        schoolId: data.schoolId,
+        keyStage: data.keyStage,
+      },
+    });
 
     await this.audit.log({
       userId: adminId,
@@ -166,7 +194,10 @@ export class AdminService {
 
   async getAllClasses() {
     return this.prisma.class.findMany({
-      include: { _count: { select: { students: true } } },
+      include: {
+        school: { select: { id: true, name: true, phase: true } },
+        _count: { select: { students: true, classSubjects: true } },
+      },
       orderBy: [{ year: 'asc' }, { name: 'asc' }],
     });
   }
@@ -210,9 +241,23 @@ export class AdminService {
     const student = await this.prisma.studentProfile.findUnique({ where: { userId: studentUserId } });
     if (!student) throw new NotFoundException('Student profile not found');
 
+    const schoolClass = await this.prisma.class.findUnique({
+      where: { id: classId },
+      include: { school: true },
+    });
+    if (!schoolClass) throw new NotFoundException('Class not found');
+    if (!pupilCanLogin(schoolClass.school.phase) && student.userId) {
+      throw new BadRequestException(
+        'Nursery children have a pupil record and cannot log in. Do not place a login account in a Nursery class.',
+      );
+    }
+    if (!keyStageFitsSchool(schoolClass.school.phase, schoolClass.keyStage)) {
+      throw new BadRequestException(placementError(schoolClass.school.phase, schoolClass.keyStage) ?? 'Invalid class placement');
+    }
+
     const updated = await this.prisma.studentProfile.update({
       where: { id: student.id },
-      data: { classId },
+      data: { classId, schoolId: schoolClass.schoolId },
     });
 
     await this.audit.log({
@@ -312,7 +357,7 @@ export class AdminService {
     }
 
     const results = { created: 0, skipped: 0, errors: [] as string[] };
-    const validRoles = ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'STAFF'];
+    const validRoles = ['ADMIN', 'TEACHER', 'STUDENT', 'PARENT', 'STAFF', 'HEAD'];
 
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split(',').map((c) => c.trim());

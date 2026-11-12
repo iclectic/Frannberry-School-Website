@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import SchoolsSection from '@/components/SchoolsSection';
 
 export default function AdmissionsPage() {
   const steps = [
@@ -18,13 +19,14 @@ export default function AdmissionsPage() {
         <section className="bg-gradient-to-br from-brand-800 to-brand-900 py-16 text-white sm:py-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <h1 className="text-4xl font-bold sm:text-5xl">Admissions</h1>
-            <p className="mt-4 max-w-2xl text-lg text-brand-100">We welcome applications from families who share our commitment to academic excellence and personal growth.</p>
+            <p className="mt-4 max-w-2xl text-lg text-brand-100">Apply to Nursery (ages 2–4), Primary (ages 4–11, including Reception), or Secondary (ages 11–18).</p>
           </div>
         </section>
 
         <section className="py-16">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-bold text-gray-900">Admissions Process</h2>
+            <SchoolsSection heading="Choose a school" />
+            <h2 className="mt-12 text-2xl font-bold text-gray-900">Admissions Process</h2>
             <p className="mt-3 text-gray-600">Our admissions process is designed to be straightforward and supportive. Here is what to expect:</p>
 
             <div className="mt-10 space-y-6">

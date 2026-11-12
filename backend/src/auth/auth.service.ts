@@ -1,8 +1,9 @@
 import {
-  Injectable,
-  UnauthorizedException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -15,8 +16,23 @@ import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { Role } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
+import {
+  canDisableMfa,
+  clearSignInLock,
+  decryptSecret,
+  encryptSecret,
+  encryptionKeyFromSecret,
+  generateBackupCodes,
+  hashBackupCode,
+  hashToken,
+  isAccountLocked,
+  registerFailedSignIn,
+  sessionNeedsMfaSetup,
+} from './account-security';
+import { pupilCanLogin } from '../school/phase-rules';
 
 const SALT_ROUNDS = 12;
+const RESET_TTL_MS = 60 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -37,26 +53,51 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    const now = new Date();
+    if (isAccountLocked(user, now)) {
+      throw new UnauthorizedException(
+        `Account locked until ${user.lockedUntil!.toISOString()} after 5 failed sign-ins. Try again in 15 minutes.`,
+      );
+    }
+
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordValid) {
+      await this.recordFailedSignIn(user.id, user.failedLoginAttempts, user.lockedUntil, now);
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // MFA check for staff and teachers
+    if (user.role === Role.STUDENT) {
+      const pupil = await this.prisma.studentProfile.findUnique({
+        where: { userId: user.id },
+        include: { school: true, class: { include: { school: true } } },
+      });
+      const phase = pupil?.school?.phase ?? pupil?.class?.school?.phase;
+      if (phase && !pupilCanLogin(phase)) {
+        throw new UnauthorizedException('Nursery children cannot sign in');
+      }
+    }
+
     if (user.mfaEnabled) {
       if (!dto.mfaCode) {
         return { requiresMfa: true, message: 'MFA code required' };
       }
-      const isValid = authenticator.verify({
-        token: dto.mfaCode,
-        secret: user.mfaSecret!,
-      });
-      if (!isValid) {
-        throw new UnauthorizedException('Invalid MFA code');
+      const totpValid = this.verifyTotp(user.mfaSecret, dto.mfaCode);
+      if (!totpValid) {
+        const backupValid = await this.consumeBackupCode(user.id, dto.mfaCode);
+        if (!backupValid) {
+          await this.recordFailedSignIn(user.id, user.failedLoginAttempts, user.lockedUntil, now);
+          throw new UnauthorizedException('Invalid MFA code');
+        }
       }
     }
 
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: clearSignInLock(),
+    });
+
+    const mfaSetupRequired = sessionNeedsMfaSetup(user.role, user.mfaEnabled);
+    const tokens = await this.generateTokens(user.id, user.email, user.role, mfaSetupRequired);
 
     await this.audit.log({
       userId: user.id,
@@ -69,19 +110,22 @@ export class AuthService {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      mfaSetupRequired,
       user: {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        mfaEnabled: user.mfaEnabled,
+        mfaSetupRequired,
       },
     };
   }
 
   async refreshTokens(dto: RefreshTokenDto) {
     const storedToken = await this.prisma.refreshToken.findUnique({
-      where: { token: dto.refreshToken },
+      where: { token: hashToken(dto.refreshToken) },
       include: { user: true },
     });
 
@@ -89,7 +133,6 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    // Revoke old token
     await this.prisma.refreshToken.update({
       where: { id: storedToken.id },
       data: { revoked: true },
@@ -99,21 +142,22 @@ export class AuthService {
       throw new UnauthorizedException('Account is inactive');
     }
 
+    const mfaSetupRequired = sessionNeedsMfaSetup(storedToken.user.role, storedToken.user.mfaEnabled);
     return this.generateTokens(
       storedToken.user.id,
       storedToken.user.email,
       storedToken.user.role,
+      mfaSetupRequired,
     );
   }
 
   async logout(userId: string, refreshToken?: string) {
     if (refreshToken) {
       await this.prisma.refreshToken.updateMany({
-        where: { userId, token: refreshToken },
+        where: { userId, token: hashToken(refreshToken) },
         data: { revoked: true },
       });
     } else {
-      // Revoke all refresh tokens for this user
       await this.prisma.refreshToken.updateMany({
         where: { userId },
         data: { revoked: true },
@@ -140,10 +184,9 @@ export class AuthService {
       secret,
     );
 
-    // Store secret temporarily (will be confirmed on verify)
     await this.prisma.user.update({
       where: { id: userId },
-      data: { mfaSecret: secret },
+      data: { mfaSecret: encryptSecret(secret, this.encryptionKey()), mfaEnabled: false },
     });
 
     return { secret, otpAuthUrl };
@@ -155,19 +198,29 @@ export class AuthService {
       throw new BadRequestException('MFA setup not initiated');
     }
 
-    const isValid = authenticator.verify({
-      token: totpCode,
-      secret: user.mfaSecret,
-    });
+    let secret: string;
+    try {
+      secret = decryptSecret(user.mfaSecret, this.encryptionKey());
+    } catch {
+      throw new BadRequestException('MFA setup not initiated');
+    }
 
+    const isValid = authenticator.verify({ token: totpCode, secret });
     if (!isValid) {
       throw new BadRequestException('Invalid TOTP code');
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: true },
-    });
+    const backupCodes = generateBackupCodes();
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { mfaEnabled: true },
+      }),
+      this.prisma.backupCode.deleteMany({ where: { userId } }),
+      this.prisma.backupCode.createMany({
+        data: backupCodes.map((code) => ({ userId, codeHash: hashBackupCode(code) })),
+      }),
+    ]);
 
     await this.audit.log({
       userId,
@@ -176,14 +229,26 @@ export class AuthService {
       entityId: userId,
     });
 
-    return { message: 'MFA enabled successfully' };
+    return {
+      message: 'MFA enabled successfully. Save these backup codes now. They will not be shown again.',
+      backupCodes,
+    };
   }
 
   async disableMfa(userId: string) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: false, mfaSecret: null },
-    });
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (!canDisableMfa(user.role)) {
+      throw new ForbiddenException('Heads, office admins, and teachers cannot turn MFA off');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { mfaEnabled: false, mfaSecret: null },
+      }),
+      this.prisma.backupCode.deleteMany({ where: { userId } }),
+    ]);
 
     await this.audit.log({
       userId,
@@ -197,22 +262,26 @@ export class AuthService {
 
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    // Always return success to prevent email enumeration
     if (!user) return { message: 'If an account exists with that email, a reset link has been sent.' };
 
     const token = crypto.randomBytes(32).toString('hex');
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenHash = hashToken(token);
+    const now = new Date();
 
-    // Store hashed token in mfaSecret field temporarily (reused field)
-    // In production, use a dedicated PasswordReset table
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { mfaSecret: `reset:${hashedToken}:${Date.now() + 3600000}` },
+    await this.prisma.passwordReset.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: now },
+    });
+    await this.prisma.passwordReset.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(now.getTime() + RESET_TTL_MS),
+      },
     });
 
     const frontendUrl = this.config.get<string>('CORS_ORIGIN', 'http://localhost:3000');
     const resetLink = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
-
     await this.email.sendPasswordReset(user.email, user.firstName, resetLink);
 
     return { message: 'If an account exists with that email, a reset link has been sent.' };
@@ -220,34 +289,29 @@ export class AuthService {
 
   async resetPassword(email: string, token: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (!user || !user.mfaSecret?.startsWith('reset:')) {
+    const reset = user
+      ? await this.prisma.passwordReset.findUnique({ where: { tokenHash: hashToken(token) } })
+      : null;
+
+    if (!user || !reset || reset.userId !== user.id || reset.usedAt || reset.expiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
-    const parts = user.mfaSecret.split(':');
-    const storedHash = parts[1];
-    const expiry = parseInt(parts[2], 10);
-
-    if (Date.now() > expiry) {
-      throw new BadRequestException('Reset token has expired');
-    }
-
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    if (hashedToken !== storedHash) {
-      throw new BadRequestException('Invalid or expired reset token');
-    }
-
-    const hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: hash, mfaSecret: user.mfaEnabled ? user.mfaSecret : null },
-    });
-
-    // Revoke all refresh tokens
-    await this.prisma.refreshToken.updateMany({
-      where: { userId: user.id },
-      data: { revoked: true },
-    });
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash, ...clearSignInLock() },
+      }),
+      this.prisma.passwordReset.update({
+        where: { id: reset.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: user.id },
+        data: { revoked: true },
+      }),
+    ]);
 
     await this.audit.log({
       userId: user.id,
@@ -259,9 +323,46 @@ export class AuthService {
     return { message: 'Password has been reset successfully. Please log in with your new password.' };
   }
 
-  private async generateTokens(userId: string, email: string, role: Role) {
-    const payload = { sub: userId, email, role };
+  private async recordFailedSignIn(
+    userId: string,
+    attempts: number,
+    lockedUntil: Date | null,
+    now: Date,
+  ) {
+    const next = registerFailedSignIn({ failedLoginAttempts: attempts, lockedUntil }, now);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: next,
+    });
+  }
 
+  private verifyTotp(storedSecret: string | null, code: string): boolean {
+    if (!storedSecret || !/^\d{6}$/.test(code)) return false;
+    try {
+      const secret = decryptSecret(storedSecret, this.encryptionKey());
+      return authenticator.verify({ token: code, secret });
+    } catch {
+      return false;
+    }
+  }
+
+  private async consumeBackupCode(userId: string, code: string): Promise<boolean> {
+    const result = await this.prisma.backupCode.updateMany({
+      where: { userId, codeHash: hashBackupCode(code), usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  private encryptionKey() {
+    const secret = this.config.get<string>('MFA_ENCRYPTION_KEY')
+      || this.config.get<string>('JWT_SECRET')
+      || 'frannberry-dev-mfa-key';
+    return encryptionKeyFromSecret(secret);
+  }
+
+  private async generateTokens(userId: string, email: string, role: Role, mfaSetupRequired: boolean) {
+    const payload = { sub: userId, email, role, scope: mfaSetupRequired ? 'mfa-setup' : 'full' };
     const accessToken = this.jwt.sign(payload);
 
     const refreshToken = uuidv4();
@@ -272,7 +373,7 @@ export class AuthService {
 
     await this.prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashToken(refreshToken),
         userId,
         expiresAt,
       },

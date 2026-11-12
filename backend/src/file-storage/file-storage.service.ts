@@ -24,9 +24,13 @@ export class FileStorageService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    const exists = await this.client.bucketExists(this.bucket);
-    if (!exists) {
-      await this.client.makeBucket(this.bucket, 'us-east-1');
+    try {
+      const exists = await this.client.bucketExists(this.bucket);
+      if (!exists) {
+        await this.client.makeBucket(this.bucket, 'us-east-1');
+      }
+    } catch (err) {
+      console.warn('Object storage is not reachable. File uploads will fail until MinIO is running.', err);
     }
   }
 

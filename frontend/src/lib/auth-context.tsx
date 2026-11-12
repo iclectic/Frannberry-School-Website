@@ -8,7 +8,9 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT' | 'STAFF';
+  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT' | 'STAFF' | 'HEAD';
+  mfaEnabled?: boolean;
+  mfaSetupRequired?: boolean;
 }
 
 interface AuthContextType {

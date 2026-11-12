@@ -1,14 +1,5 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { MessagingService } from './messaging.service';
@@ -20,24 +11,39 @@ import { MessagingService } from './messaging.service';
 export class MessagingController {
   constructor(private messagingService: MessagingService) {}
 
+  @Get('contacts')
+  @ApiOperation({ summary: 'People the signed-in user may start a conversation with' })
+  getContacts(@CurrentUser('id') userId: string) {
+    return this.messagingService.getContacts(userId);
+  }
+
   @Post('conversations')
-  @ApiOperation({ summary: 'Create a new conversation' })
-  async createConversation(
+  @ApiOperation({ summary: 'Open a conversation. The same pair returns the existing thread.' })
+  createConversation(
     @CurrentUser('id') userId: string,
-    @Body() body: { participantIds: string[]; title?: string },
+    @Body() body: { participantId: string; studentId?: string },
   ) {
-    return this.messagingService.createConversation(userId, body.participantIds, body.title);
+    return this.messagingService.createConversation(userId, body.participantId, body.studentId);
   }
 
   @Get('conversations')
   @ApiOperation({ summary: 'Get all conversations for current user' })
-  async getConversations(@CurrentUser('id') userId: string) {
+  getConversations(@CurrentUser('id') userId: string) {
     return this.messagingService.getConversations(userId);
+  }
+
+  @Get('conversations/:conversationId/allowance')
+  @ApiOperation({ summary: 'Weekly send allowance for this conversation' })
+  getAllowance(
+    @CurrentUser('id') userId: string,
+    @Param('conversationId') conversationId: string,
+  ) {
+    return this.messagingService.getAllowance(userId, conversationId);
   }
 
   @Get('conversations/:conversationId/messages')
   @ApiOperation({ summary: 'Get messages in a conversation' })
-  async getMessages(
+  getMessages(
     @CurrentUser('id') userId: string,
     @Param('conversationId') conversationId: string,
     @Query('page') page?: number,
@@ -48,7 +54,7 @@ export class MessagingController {
 
   @Post('conversations/:conversationId/messages')
   @ApiOperation({ summary: 'Send a message (REST fallback)' })
-  async sendMessage(
+  sendMessage(
     @CurrentUser('id') userId: string,
     @Param('conversationId') conversationId: string,
     @Body() body: { content: string },
@@ -57,8 +63,8 @@ export class MessagingController {
   }
 
   @Delete('messages/:messageId')
-  @ApiOperation({ summary: 'Delete (soft) a message' })
-  async deleteMessage(
+  @ApiOperation({ summary: 'Delete (soft) a message. This does not restore a weekly allowance.' })
+  deleteMessage(
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
     @Param('messageId') messageId: string,
