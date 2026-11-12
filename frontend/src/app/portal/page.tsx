@@ -45,6 +45,7 @@ export default function PortalDashboard() {
   const [adminStats, setAdminStats] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [membership, setMembership] = useState<any>(null);
+  const [schoolDashboard, setSchoolDashboard] = useState<any>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -73,6 +74,12 @@ export default function PortalDashboard() {
       apiFetch('/reports/enrollment', { token })
         .then(setAdminStats)
         .catch(() => {});
+    }
+
+    if (user?.role === 'HEAD') {
+      apiFetch('/school/dashboard', { token })
+        .then(setSchoolDashboard)
+        .catch(() => setSchoolDashboard(null));
     }
   }, [token, user?.role]);
 
@@ -114,10 +121,13 @@ export default function PortalDashboard() {
             <p className="mt-3 text-sm text-gray-600">Class: {membership.class.name} ({membership.class.keyStage})</p>
           )}
           {membership.children?.length > 0 && (
-            <ul className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+            <ul className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
               {membership.children.map((child: any) => (
                 <li key={child.studentId}>
-                  {child.firstName} {child.lastName} · {child.school?.name || 'No school'} · {child.class?.name || 'No class'}
+                  <Link href={`/portal/children/${child.studentId}`} className="font-medium text-brand-700 hover:underline">
+                    {child.firstName} {child.lastName}
+                  </Link>
+                  {' · '}{child.school?.name || 'No school'} · {child.class?.name || 'No class'}
                   {child.canLogin ? '' : ' · cannot sign in'}
                 </li>
               ))}
@@ -209,6 +219,56 @@ export default function PortalDashboard() {
             <QuickAction href="/portal/messages" label="Messages" icon="💬" />
           </div>
         </>
+      )}
+
+      {/* ── Headteacher school dashboard ─────────────────────────────────── */}
+      {user.role === 'HEAD' && schoolDashboard && (
+        <section className="mb-8" aria-label="Your school">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{schoolDashboard.school.name}</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Ages {schoolDashboard.school.ageMin}–{schoolDashboard.school.ageMax} · {schoolDashboard.school.keyStages.join(', ')}
+          </p>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{schoolDashboard.school.note}</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Pupils" value={schoolDashboard.counts.pupils} />
+            <StatCard label="Cannot sign in" value={schoolDashboard.counts.pupilsWithoutLogin} />
+            <StatCard label="Classes" value={schoolDashboard.counts.classes} />
+            <StatCard label="Teachers" value={schoolDashboard.counts.teachers} />
+          </div>
+          <h3 className="mb-3 mt-6 text-sm font-semibold uppercase tracking-wider text-gray-500">Classes in this school</h3>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {schoolDashboard.classes.map((schoolClass: any) => (
+              <div key={schoolClass.id} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <p className="font-semibold text-gray-900 dark:text-gray-100">{schoolClass.name}</p>
+                <p className="text-xs text-gray-500">{schoolClass.keyStage} · {schoolClass.pupilCount} pupil{schoolClass.pupilCount === 1 ? '' : 's'}</p>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                  {schoolClass.teachers.length ? schoolClass.teachers.map((teacher: any) => teacher.name).join(', ') : 'No teacher assigned'}
+                </p>
+              </div>
+            ))}
+          </div>
+          <h3 className="mb-3 mt-6 text-sm font-semibold uppercase tracking-wider text-gray-500">Pupils in this school</h3>
+          {schoolDashboard.pupils.length === 0 ? (
+            <p className="text-sm text-gray-500">No pupils in this school yet.</p>
+          ) : (
+            <ul className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white dark:divide-gray-700 dark:border-gray-700 dark:bg-gray-900">
+              {schoolDashboard.pupils.map((pupil: any) => (
+                <li key={pupil.studentId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{pupil.firstName} {pupil.lastName}</p>
+                    <p className="text-xs text-gray-500">
+                      {pupil.class?.name || 'No class'} · {pupil.admissionNo}
+                      {pupil.parents?.length ? ` · ${pupil.parents.map((parent: any) => parent.name).join(', ')}` : ''}
+                    </p>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pupil.canLogin ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800'}`}>
+                    {pupil.canLogin ? 'Can sign in' : 'Cannot sign in'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {/* ── Staff Dashboard ──────────────────────────────────────────────── */}

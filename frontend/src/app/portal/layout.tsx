@@ -64,6 +64,7 @@ const navByRole: Record<string, { href: string; label: string }[]> = {
   ],
   PARENT: [
     { href: '/portal', label: 'Dashboard' },
+    { href: '/portal/children', label: 'Children' },
     { href: '/portal/search', label: 'Search' },
     { href: '/portal/attendance', label: 'Attendance' },
     { href: '/portal/results', label: 'Results' },
@@ -175,7 +176,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       </aside>
 
       {/* Mobile header */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 px-4 py-3 lg:hidden">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-700 text-xs font-bold text-white">FS</span>
