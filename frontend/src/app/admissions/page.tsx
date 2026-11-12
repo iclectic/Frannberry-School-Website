@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SchoolsSection from '@/components/SchoolsSection';
+import AdmissionsForm from '@/components/AdmissionsForm';
 
 export default function AdmissionsPage() {
   const steps = [
@@ -49,6 +50,10 @@ export default function AdmissionsPage() {
                 <li><strong>Assessment Days:</strong> Week commencing 1st February 2027</li>
                 <li><strong>Offers Issued:</strong> Friday 1st March 2027</li>
               </ul>
+            </div>
+
+            <div className="mt-12">
+              <AdmissionsForm />
             </div>
 
             <div className="mt-10 flex flex-wrap gap-4">

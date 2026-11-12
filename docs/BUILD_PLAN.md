@@ -1,6 +1,6 @@
 # Frannberry Schools build plan
 
-Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–6 are done. Steps 7–8 are not started.
+Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–7 are done. Step 8 is not started.
 
 ## Done
 
@@ -61,11 +61,15 @@ Frannberry is one trust with three schools: Nursery, Primary, and Secondary. Thi
 - A school announcement stays inside that school. A notice with no school is trust-wide and is listed separately.
 - A parent sees one group for each child. A headteacher sees only their school. A teacher sees the classes they teach. The office admin still sees every school.
 
-## Later
-
 ### Step 7. Admissions by school
 
-Take applications for Nursery, Primary, and Secondary. A Nursery place creates a pupil record and no login. Primary and Secondary places can create a login.
+- A family can apply to Nursery, Primary, or Secondary. The child’s age and key stage have to fit that school. A four-year-old belongs in Primary, and Reception stays EYFS.
+- Offering a Nursery place creates a pupil record and no login.
+- Offering a Primary or Secondary place can also create a login. The temporary password is shown once.
+- A headteacher reviews only their own school. The office reviews every school, and that does not make the office account a headteacher.
+- `POST /api/v1/admissions/applications` is public. `GET /api/v1/admissions/applications` and the enrol and decline routes are for `ADMIN` and `HEAD`.
+
+## Later
 
 ### Step 8. Trust reports
 

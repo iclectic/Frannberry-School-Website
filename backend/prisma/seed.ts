@@ -27,6 +27,7 @@ async function main() {
   await prisma.announcement.deleteMany();
   await prisma.classSubjectTeacher.deleteMany();
   await prisma.parentStudent.deleteMany();
+  await prisma.admissionApplication.deleteMany();
   await prisma.studentProfile.deleteMany();
   await prisma.teacherProfile.deleteMany();
   await prisma.parentProfile.deleteMany();
@@ -868,6 +869,50 @@ async function main() {
   });
 
   console.log('✅ Fee templates and invoices created');
+
+  await prisma.admissionApplication.create({
+    data: {
+      reference: 'APP-NURSERY1',
+      schoolId: nursery.id,
+      childFirstName: 'Arthur',
+      childLastName: 'Bell',
+      dateOfBirth: new Date('2023-04-02'),
+      keyStage: KeyStage.EYFS,
+      parentFirstName: 'Claire',
+      parentLastName: 'Bell',
+      parentEmail: 'claire.bell@example.com',
+      parentPhone: '07700900111',
+    },
+  });
+  await prisma.admissionApplication.create({
+    data: {
+      reference: 'APP-PRIMARY1',
+      schoolId: primary.id,
+      childFirstName: 'Nora',
+      childLastName: 'Bell',
+      dateOfBirth: new Date('2018-09-01'),
+      keyStage: KeyStage.KS2,
+      parentFirstName: 'Claire',
+      parentLastName: 'Bell',
+      parentEmail: 'claire.bell@example.com',
+      parentPhone: '07700900111',
+    },
+  });
+  await prisma.admissionApplication.create({
+    data: {
+      reference: 'APP-SECONDARY1',
+      schoolId: secondary.id,
+      childFirstName: 'Leo',
+      childLastName: 'Bell',
+      dateOfBirth: new Date('2014-01-20'),
+      keyStage: KeyStage.KS3,
+      parentFirstName: 'Claire',
+      parentLastName: 'Bell',
+      parentEmail: 'claire.bell@example.com',
+    },
+  });
+
+  console.log('✅ Sample admissions created');
 
   console.log('\n🎉 Seeding complete!\n');
   console.log('═══════════════════════════════════════════════');

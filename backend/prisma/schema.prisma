@@ -68,6 +68,12 @@ enum AnnouncementScope {
   CLASS
 }
 
+enum AdmissionStatus {
+  RECEIVED
+  ENROLLED
+  DECLINED
+}
+
 enum MessageType {
   TEXT
   FILE
@@ -214,6 +220,8 @@ model User {
   // Custom roles
   userCustomRoles UserCustomRole[]
 
+  admissionDecisions AdmissionApplication[]
+
   @@map("users")
 }
 
@@ -315,6 +323,8 @@ model StudentProfile {
 
   conversations Conversation[]
 
+  admissionApplication AdmissionApplication?
+
   @@map("student_profiles")
 }
 
@@ -374,6 +384,7 @@ model School {
   students      StudentProfile[]
   conversations Conversation[]
   announcements Announcement[]
+  admissionApplications AdmissionApplication[]
 
   @@map("schools")
 }
@@ -388,6 +399,31 @@ model HeadProfile {
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("head_profiles")
+}
+
+model AdmissionApplication {
+  id              String          @id @default(uuid())
+  reference       String          @unique
+  schoolId        String          @map("school_id")
+  school          School          @relation(fields: [schoolId], references: [id])
+  childFirstName  String          @map("child_first_name")
+  childLastName   String          @map("child_last_name")
+  dateOfBirth     DateTime        @map("date_of_birth") @db.Date
+  keyStage        KeyStage        @map("key_stage")
+  parentFirstName String          @map("parent_first_name")
+  parentLastName  String          @map("parent_last_name")
+  parentEmail     String          @map("parent_email")
+  parentPhone     String?         @map("parent_phone")
+  status          AdmissionStatus @default(RECEIVED)
+  studentId       String?         @unique @map("student_id")
+  student         StudentProfile? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  decidedById     String?         @map("decided_by_id")
+  decidedBy       User?           @relation(fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?       @map("decided_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  @@index([schoolId, status])
+  @@map("admission_applications")
 }
 
 model PasswordReset {

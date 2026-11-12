@@ -9,6 +9,7 @@ import { useTheme } from '@/lib/theme-context';
 const navByRole: Record<string, { href: string; label: string }[]> = {
   ADMIN: [
     { href: '/portal', label: 'Dashboard' },
+    { href: '/portal/admissions', label: 'Admissions' },
     { href: '/portal/search', label: 'Search' },
     { href: '/portal/users', label: 'Users' },
     { href: '/portal/classes', label: 'Classes' },
@@ -89,6 +90,7 @@ const navByRole: Record<string, { href: string; label: string }[]> = {
   ],
   HEAD: [
     { href: '/portal', label: 'Dashboard' },
+    { href: '/portal/admissions', label: 'Admissions' },
     { href: '/portal/announcements', label: 'Announcements' },
     { href: '/portal/attendance', label: 'Attendance' },
     { href: '/portal/timetable', label: 'Timetable' },
