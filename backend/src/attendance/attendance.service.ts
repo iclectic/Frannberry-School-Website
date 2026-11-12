@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { pupilName } from '../common/pupil-name';
 
 @Injectable()
 export class AttendanceService {
@@ -56,7 +57,7 @@ export class AttendanceService {
             userId: link.parent.userId,
             type: 'ATTENDANCE',
             title: 'Absence Notification',
-            body: `${upserted.student.user.firstName} ${upserted.student.user.lastName} was marked absent on ${date}.`,
+            body: `${pupilName(upserted.student).firstName} ${pupilName(upserted.student).lastName} was marked absent on ${date}.`,
             link: '/portal/attendance',
           });
         }

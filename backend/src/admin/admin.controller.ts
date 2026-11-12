@@ -96,7 +96,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Create a class' })
   async createClass(
     @CurrentUser('id') adminId: string,
-    @Body() body: { name: string; year: number; section?: string; capacity?: number },
+    @Body() body: { name: string; year: number; section?: string; capacity?: number; schoolId: string; keyStage: any },
   ) {
     return this.adminService.createClass(adminId, body);
   }

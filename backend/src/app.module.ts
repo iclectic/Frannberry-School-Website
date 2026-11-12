@@ -26,6 +26,7 @@ import { ConferencesModule } from './conferences/conferences.module';
 import { NotificationPreferencesModule } from './notification-preferences/notification-preferences.module';
 import { ReportsModule } from './reports/reports.module';
 import { PermissionsModule } from './permissions/permissions.module';
+import { SchoolModule } from './school/school.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { PermissionsModule } from './permissions/permissions.module';
     NotificationPreferencesModule,
     ReportsModule,
     PermissionsModule,
+    SchoolModule,
   ],
   providers: [
     {

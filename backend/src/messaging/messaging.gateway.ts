@@ -10,7 +10,10 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { HttpException } from '@nestjs/common';
 import { MessagingService } from './messaging.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { sessionNeedsMfaSetup } from '../auth/account-security';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -30,6 +33,7 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     private messagingService: MessagingService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private prisma: PrismaService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -46,6 +50,15 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
       const payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
+
+      const account = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { role: true, mfaEnabled: true, isActive: true },
+      });
+      if (!account?.isActive || sessionNeedsMfaSetup(account.role, account.mfaEnabled)) {
+        client.disconnect();
+        return;
+      }
 
       client.userId = payload.sub;
 
@@ -84,19 +97,23 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { conversationId: string; content: string },
   ) {
-    if (!client.userId) return;
+    if (!client.userId) return { error: 'Not signed in' };
 
-    const message = await this.messagingService.sendMessage(
-      client.userId,
-      data.conversationId,
-      data.content,
-    );
+    try {
+      const message = await this.messagingService.sendMessage(
+        client.userId,
+        data.conversationId,
+        data.content,
+      );
 
-    this.server
-      .to(`conversation:${data.conversationId}`)
-      .emit('newMessage', message);
+      this.server
+        .to(`conversation:${data.conversationId}`)
+        .emit('newMessage', message);
 
-    return message;
+      return message;
+    } catch (err) {
+      return { error: exceptionMessage(err) };
+    }
   }
 
   @SubscribeMessage('joinConversation')
@@ -130,4 +147,16 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
       conversationId: data.conversationId,
     });
   }
+}
+
+function exceptionMessage(err: unknown): string {
+  if (err instanceof HttpException) {
+    const response = err.getResponse();
+    if (typeof response === 'string') return response;
+    if (response && typeof response === 'object' && 'message' in response) {
+      const message = (response as { message: string | string[] }).message;
+      return Array.isArray(message) ? message.join(', ') : message;
+    }
+  }
+  return err instanceof Error ? err.message : 'Could not send message';
 }

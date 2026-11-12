@@ -6,9 +6,9 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <h3 className="mb-3 text-lg font-bold text-white">Frannberry School</h3>
+            <h3 className="mb-3 text-lg font-bold text-white">Frannberry Schools</h3>
             <p className="text-sm leading-relaxed text-gray-400">
-              Nurturing excellence, building futures. We are committed to providing outstanding education in a supportive and inspiring environment.
+              One trust. Three schools: Nursery, Primary, and Secondary.
             </p>
           </div>
           <div>

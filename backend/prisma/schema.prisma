@@ -15,6 +15,30 @@ enum Role {
   TEACHER
   STUDENT
   PARENT
+  HEAD
+}
+
+enum SchoolPhase {
+  NURSERY
+  PRIMARY
+  SECONDARY
+}
+
+enum KeyStage {
+  EYFS
+  KS1
+  KS2
+  KS3
+  KS4
+  KS5
+}
+
+enum ConversationPurpose {
+  PARENT_TEACHER
+  PARENT_HEAD
+  TEACHER_TEACHER
+  TEACHER_HEAD
+  PUPIL_TEACHER
 }
 
 enum AssessmentType {
@@ -136,18 +160,25 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  // MFA
+  // MFA. mfaSecret is an encrypted authenticator secret, never a password-reset token.
   mfaEnabled    Boolean  @default(false) @map("mfa_enabled")
   mfaSecret     String?  @map("mfa_secret")
 
-  // Refresh tokens
+  // Sign-in lockout. Five failures lock the account for 15 minutes.
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
+
+  // Refresh tokens (the token column stores a hash)
   refreshTokens RefreshToken[]
+  passwordResets PasswordReset[]
+  backupCodes    BackupCode[]
 
   // Role-specific profiles
   teacherProfile TeacherProfile?
   studentProfile StudentProfile?
   parentProfile  ParentProfile?
   staffProfile   StaffProfile?
+  headProfile    HeadProfile?
 
   // Messaging
   sentMessages     Message[]       @relation("SentMessages")
@@ -188,6 +219,7 @@ model User {
 
 model RefreshToken {
   id        String   @id @default(uuid())
+  /// SHA-256 hex of the refresh token. The raw token is returned once and is not stored.
   token     String   @unique
   userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -244,11 +276,17 @@ model TeacherProfile {
 
 model StudentProfile {
   id             String   @id @default(uuid())
-  userId         String   @unique @map("user_id")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Nursery pupils have a record and no login. Primary and secondary pupils can sign in.
+  userId         String?  @unique @map("user_id")
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
   admissionNo    String   @unique @map("admission_no")
   dateOfBirth    DateTime? @map("date_of_birth")
   enrollmentDate DateTime @default(now()) @map("enrollment_date")
+
+  schoolId       String?  @map("school_id")
+  school         School?  @relation(fields: [schoolId], references: [id])
 
   // Current class enrolment
   classId        String?  @map("class_id")
@@ -274,6 +312,8 @@ model StudentProfile {
 
   // Conference slots (as subject student)
   conferenceSlots ConferenceSlot[]
+
+  conversations Conversation[]
 
   @@map("student_profiles")
 }
@@ -319,6 +359,61 @@ model ParentStudent {
   @@map("parent_students")
 }
 
+// ─── Trust schools ───────────────────────────────────────────────────────────
+
+model School {
+  id        String      @id @default(uuid())
+  phase     SchoolPhase @unique
+  name      String
+  ageMin    Int         @map("age_min")
+  ageMax    Int         @map("age_max")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  headProfile   HeadProfile?
+  classes       Class[]
+  students      StudentProfile[]
+  conversations Conversation[]
+
+  @@map("schools")
+}
+
+model HeadProfile {
+  id         String   @id @default(uuid())
+  userId     String   @unique @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId   String   @unique @map("school_id")
+  school     School   @relation(fields: [schoolId], references: [id])
+  employeeId String   @unique @map("employee_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("head_profiles")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+model BackupCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, codeHash])
+  @@map("backup_codes")
+}
+
 // ─── Academic Structure ──────────────────────────────────────────────────────
 
 model AcademicSession {
@@ -358,6 +453,9 @@ model Class {
   year      Int
   section   String?
   capacity  Int      @default(30)
+  schoolId  String   @map("school_id")
+  school    School   @relation(fields: [schoolId], references: [id])
+  keyStage  KeyStage @map("key_stage")
   createdAt DateTime @default(now()) @map("created_at")
 
   students       StudentProfile[]
@@ -488,12 +586,18 @@ model Conversation {
   id           String   @id @default(uuid())
   title        String?
   isModerated  Boolean  @default(false) @map("is_moderated")
+  purpose      ConversationPurpose
+  schoolId     String   @map("school_id")
+  school       School   @relation(fields: [schoolId], references: [id])
+  studentId    String?  @map("student_id")
+  student      StudentProfile? @relation(fields: [studentId], references: [id])
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   participants ConversationParticipant[]
   messages     Message[]
 
+  @@index([purpose, studentId])
   @@map("conversations")
 }
 
@@ -524,6 +628,7 @@ model Message {
   createdAt      DateTime     @default(now()) @map("created_at")
 
   @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
   @@map("messages")
 }
 

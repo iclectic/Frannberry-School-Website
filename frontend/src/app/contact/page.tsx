@@ -18,7 +18,7 @@ export default function ContactPage() {
             <div className="grid gap-12 lg:grid-cols-2">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Get in Touch</h2>
-                <p className="mt-3 text-gray-600">Whether you have a question about admissions, need to speak to a member of staff, or would like to arrange a visit, please do not hesitate to contact us.</p>
+                <p className="mt-3 text-gray-600">The trust office can help with Nursery, Primary, and Secondary. Each school also has its own headteacher.</p>
 
                 <div className="mt-8 space-y-6">
                   <div>

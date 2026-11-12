@@ -44,6 +44,7 @@ export default function PortalDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminStats, setAdminStats] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [membership, setMembership] = useState<any>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -62,6 +63,10 @@ export default function PortalDashboard() {
 
     apiFetch('/events?limit=5', { token })
       .then((data) => setEvents(Array.isArray(data) ? data.slice(0, 5) : []))
+      .catch(() => {});
+
+    apiFetch('/school/me', { token })
+      .then(setMembership)
       .catch(() => {});
 
     if (user?.role === 'ADMIN') {
@@ -92,6 +97,34 @@ export default function PortalDashboard() {
           {unreadCount > 0 && <span className="ml-2 inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-200">{unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}</span>}
         </p>
       </div>
+
+      {membership && (
+        <section className="mb-8" aria-label="Your schools">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Your schools</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(membership.schools || []).map((school: any) => (
+              <div key={school.id} className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">{school.name}</p>
+                <p className="text-xs text-gray-500">{school.phase} · ages {school.ageMin}–{school.ageMax}</p>
+              </div>
+            ))}
+            {membership.schools?.length === 0 && <p className="text-sm text-gray-500">No school membership.</p>}
+          </div>
+          {membership.class && (
+            <p className="mt-3 text-sm text-gray-600">Class: {membership.class.name} ({membership.class.keyStage})</p>
+          )}
+          {membership.children?.length > 0 && (
+            <ul className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+              {membership.children.map((child: any) => (
+                <li key={child.studentId}>
+                  {child.firstName} {child.lastName} · {child.school?.name || 'No school'} · {child.class?.name || 'No class'}
+                  {child.canLogin ? '' : ' · cannot sign in'}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* ── Admin Dashboard ──────────────────────────────────────────────── */}
       {user.role === 'ADMIN' && (
@@ -162,7 +195,7 @@ export default function PortalDashboard() {
       {user.role === 'PARENT' && (
         <>
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard label="Children" value={profile?.parentProfile?.children?.length || 0} />
+            <StatCard label="Children" value={membership?.children?.length ?? 0} />
             <StatCard label="Unread Notifications" value={unreadCount} />
             <StatCard label="Announcements" value={announcements.length} />
           </div>

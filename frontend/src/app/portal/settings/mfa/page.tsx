@@ -1,17 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
 
+const MANDATORY = new Set(['HEAD', 'ADMIN', 'TEACHER']);
+
 export default function MfaSettingsPage() {
-  const { token } = useAuth();
-  const [step, setStep] = useState<'idle' | 'setup' | 'confirm' | 'done'>('idle');
+  const { token, user, logout } = useAuth();
+  const mandatory = MANDATORY.has(user?.role || '');
+  const [step, setStep] = useState<'idle' | 'setup' | 'done' | 'enabled'>(user?.mfaSetupRequired ? 'idle' : 'idle');
   const [secret, setSecret] = useState('');
   const [otpAuthUrl, setOtpAuthUrl] = useState('');
   const [totpCode, setTotpCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!token || user?.mfaSetupRequired) return;
+    apiFetch('/users/profile', { token })
+      .then((profile) => {
+        if (profile?.mfaEnabled) setStep('enabled');
+      })
+      .catch(() => {});
+  }, [token, user?.mfaSetupRequired]);
 
   async function handleEnable() {
     setLoading(true);
@@ -32,11 +45,12 @@ export default function MfaSettingsPage() {
     setLoading(true);
     setError('');
     try {
-      await apiFetch('/auth/mfa/confirm', {
+      const data = await apiFetch('/auth/mfa/confirm', {
         token: token!,
         method: 'POST',
         body: JSON.stringify({ totpCode }),
       });
+      setBackupCodes(data.backupCodes || []);
       setStep('done');
     } catch (err: any) {
       setError(err.message || 'Invalid TOTP code');
@@ -53,6 +67,7 @@ export default function MfaSettingsPage() {
       setStep('idle');
       setSecret('');
       setOtpAuthUrl('');
+      setBackupCodes([]);
     } catch (err: any) {
       setError(err.message || 'Failed to disable MFA');
     }
@@ -61,43 +76,39 @@ export default function MfaSettingsPage() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Two-Factor Authentication</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Add an extra layer of security to your account using a TOTP authenticator app like Google Authenticator or Authy.
+      <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">Two-Factor Authentication</h1>
+      <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
+        {mandatory
+          ? 'Heads, office admins, and teachers must use an authenticator. This session can only set it up or sign out, and MFA cannot be turned off.'
+          : 'Parents, pupils, and other staff may turn an authenticator on if they want to.'}
       </p>
 
+      {user?.mfaSetupRequired && step !== 'done' && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Finish authenticator setup before the rest of the portal will open.
+        </div>
+      )}
+
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-6">
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/30">
           <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         </div>
       )}
 
-      {/* Idle — enable button */}
       {step === 'idle' && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-lg">🔒</div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-gray-100">MFA is not enabled</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Protect your account with a TOTP code</p>
-            </div>
-          </div>
-          <button onClick={handleEnable} disabled={loading} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-            {loading ? 'Setting up…' : 'Enable MFA'}
+        <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+          <p className="font-medium text-gray-900 dark:text-gray-100">MFA is not confirmed</p>
+          <p className="mb-4 text-xs text-gray-500">MFA is marked on only after a valid code. You will then see eight backup codes once.</p>
+          <button onClick={handleEnable} disabled={loading} className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            {loading ? 'Setting up…' : 'Set up authenticator'}
           </button>
         </div>
       )}
 
-      {/* Setup — show secret and QR URI */}
       {step === 'setup' && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 p-6">
-          <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">Step 1: Scan QR Code</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Open your authenticator app and scan the QR code below, or manually enter the secret key.
-          </p>
-
-          {/* QR Code via external service */}
-          <div className="flex justify-center mb-4">
+        <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="mb-4 font-semibold text-gray-800 dark:text-gray-200">Step 1: Scan QR Code</h2>
+          <div className="mb-4 flex justify-center">
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpAuthUrl)}`}
               alt="MFA QR Code"
@@ -106,16 +117,14 @@ export default function MfaSettingsPage() {
               height={200}
             />
           </div>
-
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-6">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Secret Key (manual entry)</p>
-            <code className="text-sm font-mono text-gray-900 dark:text-gray-100 select-all break-all">{secret}</code>
+          <div className="mb-6 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+            <p className="mb-1 text-xs font-medium text-gray-500">Secret key (manual entry)</p>
+            <code className="break-all font-mono text-sm text-gray-900 dark:text-gray-100">{secret}</code>
           </div>
-
-          <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Step 2: Verify Code</h2>
+          <h2 className="mb-3 font-semibold text-gray-800 dark:text-gray-200">Step 2: Verify Code</h2>
           <form onSubmit={handleConfirm} className="flex items-end gap-3">
             <div className="flex-1">
-              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Enter 6-digit code from your app</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Enter the 6-digit code</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -123,30 +132,42 @@ export default function MfaSettingsPage() {
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="mt-1 w-full border dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-3 py-2.5 text-center text-lg tracking-widest font-mono"
+                className="mt-1 w-full rounded-lg border px-3 py-2.5 text-center font-mono text-lg tracking-widest dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
                 required
               />
             </div>
-            <button type="submit" disabled={loading || totpCode.length !== 6} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={loading || totpCode.length !== 6} className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Verifying…' : 'Verify & Enable'}
             </button>
           </form>
         </div>
       )}
 
-      {/* Done */}
       {step === 'done' && (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-lg">✅</div>
-            <div>
-              <p className="font-medium text-gray-900 dark:text-gray-100">MFA is enabled</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Your account is protected with two-factor authentication</p>
-            </div>
-          </div>
-          <button onClick={handleDisable} disabled={loading} className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50">
-            {loading ? 'Disabling…' : 'Disable MFA'}
-          </button>
+        <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+          <p className="font-medium text-gray-900 dark:text-gray-100">Authenticator confirmed</p>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            These eight backup codes are shown once. Each code works a single time. Sign out and sign in again with a code before using the rest of the portal.
+          </p>
+          <ul className="mt-4 grid grid-cols-2 gap-2">
+            {backupCodes.map((code) => (
+              <li key={code} className="rounded bg-gray-50 px-3 py-2 text-center font-mono text-sm dark:bg-gray-800">{code}</li>
+            ))}
+          </ul>
+          <button onClick={logout} className="btn-primary mt-6">Sign out</button>
+        </div>
+      )}
+
+      {step === 'enabled' && (
+        <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+          <p className="font-medium text-gray-900 dark:text-gray-100">MFA is on</p>
+          {mandatory ? (
+            <p className="mt-2 text-sm text-gray-600">Your role cannot turn MFA off.</p>
+          ) : (
+            <button onClick={handleDisable} disabled={loading} className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+              {loading ? 'Disabling…' : 'Turn MFA off'}
+            </button>
+          )}
         </div>
       )}
     </div>

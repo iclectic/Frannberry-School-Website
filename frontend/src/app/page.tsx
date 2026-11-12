@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import SchoolsSection from '@/components/SchoolsSection';
 
 const features = [
   { title: 'Outstanding Teaching', desc: 'Our experienced and passionate teachers deliver engaging lessons that inspire curiosity and foster a love of learning.', icon: '📚' },
@@ -30,7 +31,7 @@ export default function HomePage() {
               Nurturing Excellence, Building Futures
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-brand-100 sm:text-xl">
-              Welcome to Frannberry School. We provide outstanding education in a supportive, inclusive community where every child is inspired to achieve their very best.
+              Welcome to Frannberry Schools. One trust with Nursery, Primary, and Secondary, where every child is inspired to achieve their very best.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Link href="/admissions" className="btn-accent text-base">
@@ -43,6 +44,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <SchoolsSection />
 
       {/* Stats */}
       <section className="bg-white py-12">

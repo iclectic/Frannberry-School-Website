@@ -13,6 +13,7 @@ import { LoginDto, RefreshTokenDto, EnableMfaDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { AllowDuringMfaSetup } from '../common/decorators/allow-during-mfa-setup.decorator';
 import { Request } from 'express';
 
 @ApiTags('Auth')
@@ -37,6 +38,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowDuringMfaSetup()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
@@ -46,6 +48,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowDuringMfaSetup()
   @Post('mfa/enable')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Initiate MFA setup – returns secret and QR URI' })
@@ -54,6 +57,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowDuringMfaSetup()
   @Post('mfa/confirm')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Confirm MFA setup with a TOTP code' })

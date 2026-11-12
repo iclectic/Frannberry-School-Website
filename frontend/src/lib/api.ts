@@ -23,7 +23,8 @@ export async function apiFetch<T = any>(path: string, options: FetchOptions = {}
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Request failed: ${res.status}`);
+    const message = Array.isArray(body.message) ? body.message.join(', ') : body.message;
+    throw new Error(message || `Request failed: ${res.status}`);
   }
 
   return res.json();

@@ -29,7 +29,7 @@ export default function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-bold text-brand-800 dark:text-brand-200">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-700 text-sm font-bold text-white">FS</span>
-          Frannberry School
+          Frannberry Schools
         </Link>
 
         {/* Desktop links */}

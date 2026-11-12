@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import SchoolsSection from '@/components/SchoolsSection';
 
 export default function AboutPage() {
   return (
@@ -8,8 +9,8 @@ export default function AboutPage() {
       <main>
         <section className="bg-gradient-to-br from-brand-800 to-brand-900 py-16 text-white sm:py-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <h1 className="text-4xl font-bold sm:text-5xl">About Frannberry School</h1>
-            <p className="mt-4 max-w-2xl text-lg text-brand-100">Established in 1998, we have a proud tradition of academic excellence, pastoral care, and community spirit.</p>
+            <h1 className="text-4xl font-bold sm:text-5xl">About Frannberry Schools</h1>
+            <p className="mt-4 max-w-2xl text-lg text-brand-100">One trust, three schools: Nursery, Primary, and Secondary. Established in 1998, with a proud tradition of academic excellence, pastoral care, and community spirit.</p>
           </div>
         </section>
 
@@ -35,13 +36,14 @@ export default function AboutPage() {
               </div>
 
               <h2 className="mt-12 text-2xl font-bold text-gray-900">Leadership</h2>
-              <p className="mt-4 text-gray-600 leading-relaxed">Frannberry School is led by Mrs Margaret Thornton, our Head Teacher, who brings over twenty years of experience in education. Under her leadership, the school has consistently achieved outstanding results and maintains a strong reputation for pastoral care.</p>
+              <p className="mt-4 text-gray-600 leading-relaxed">The trust office is led by Mrs Margaret Thornton. She is the office administrator, not a headteacher. Nursery, Primary, and Secondary each have their own headteacher, with a separate HEAD account from the office ADMIN account.</p>
 
               <h2 className="mt-12 text-2xl font-bold text-gray-900">Facilities</h2>
               <p className="mt-4 text-gray-600 leading-relaxed">Our campus features modern classrooms, well-equipped science laboratories, a dedicated art studio, a comprehensive library and resource centre, extensive sports facilities including a gymnasium and playing fields, and purpose-built ICT suites.</p>
             </div>
           </div>
         </section>
+        <SchoolsSection heading="Nursery, Primary, and Secondary" />
       </main>
       <Footer />
     </>

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as PDFDocument from 'pdfkit';
+import { pupilName } from '../common/pupil-name';
 
 @Injectable()
 export class ReportCardsService {
@@ -74,14 +75,16 @@ export class ReportCardsService {
       },
     });
 
-    // Notify student
-    await this.notificationsService.create({
-      userId: student.userId,
-      type: 'RESULT',
-      title: 'Report Card Available',
-      body: `Your report card for ${term.name} (${term.session.name}) is now available.`,
-      link: '/portal/report-cards',
-    });
+    const name = pupilName(student);
+    if (student.userId) {
+      await this.notificationsService.create({
+        userId: student.userId,
+        type: 'RESULT',
+        title: 'Report Card Available',
+        body: `Your report card for ${term.name} (${term.session.name}) is now available.`,
+        link: '/portal/report-cards',
+      });
+    }
 
     // Notify parents
     const parentLinks = await this.prisma.parentStudent.findMany({
@@ -93,7 +96,7 @@ export class ReportCardsService {
         userId: link.parent.userId,
         type: 'RESULT',
         title: 'Report Card Available',
-        body: `${student.user.firstName} ${student.user.lastName}'s report card for ${term.name} is ready.`,
+        body: `${name.firstName} ${name.lastName}'s report card for ${term.name} is ready.`,
         link: '/portal/report-cards',
       });
     }
@@ -189,7 +192,8 @@ export class ReportCardsService {
 
       // Student info
       doc.fontSize(10).font('Helvetica');
-      const studentName = `${data.student.user.firstName} ${data.student.user.lastName}`;
+      const named = pupilName(data.student);
+      const studentName = `${named.firstName} ${named.lastName}`;
       const className = `${data.class.name}${data.class.section ? ' ' + data.class.section : ''}`;
       const termName = `${data.term.name} — ${data.term.session.name}`;
 
