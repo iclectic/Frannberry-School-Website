@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import TrustReport from '@/components/TrustReport';
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   const bg = accent || 'bg-white dark:bg-gray-900';
@@ -46,6 +47,7 @@ export default function PortalDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [adminStats, setAdminStats] = useState<any>(null);
+  const [trustReport, setTrustReport] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [membership, setMembership] = useState<any>(null);
   const [schoolDashboard, setSchoolDashboard] = useState<any>(null);
@@ -80,6 +82,9 @@ export default function PortalDashboard() {
       apiFetch('/reports/enrollment', { token })
         .then(setAdminStats)
         .catch(() => {});
+      apiFetch('/reports/trust', { token })
+        .then(setTrustReport)
+        .catch(() => setTrustReport(null));
     }
 
     if (user?.role === 'HEAD') {
@@ -145,8 +150,9 @@ export default function PortalDashboard() {
       {/* ── Admin Dashboard ──────────────────────────────────────────────── */}
       {user.role === 'ADMIN' && (
         <>
+          <TrustReport report={trustReport} />
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Total Students" value={adminStats?.totalStudents ?? '—'} />
+            <StatCard label="Pupils" value={trustReport?.totals?.pupils ?? '—'} />
             <StatCard label="Total Teachers" value={adminStats?.totalTeachers ?? '—'} />
             <StatCard label="Total Parents" value={adminStats?.totalParents ?? '—'} />
             <StatCard label="Total Staff" value={adminStats?.totalStaff ?? '—'} />

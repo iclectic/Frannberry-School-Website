@@ -1,10 +1,57 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { pupilName } from '../common/pupil-name';
+import { shapeTrustReport } from './trust-report';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
+
+  // ── Trust report for the office admin ─────────────────────────────────────
+
+  async trustReport() {
+    const schools = await this.prisma.school.findMany({
+      include: {
+        headProfile: { include: { user: { select: { firstName: true, lastName: true } } } },
+        classes: {
+          include: {
+            _count: { select: { students: true } },
+            classSubjects: { select: { teacherId: true } },
+          },
+          orderBy: [{ year: 'asc' }, { name: 'asc' }],
+        },
+        students: { select: { userId: true } },
+        admissionApplications: { select: { status: true } },
+      },
+    });
+    const attendance = await this.prisma.attendanceRecord.findMany({
+      select: { status: true, class: { select: { schoolId: true } } },
+    });
+    const attendanceBySchool = new Map<string, { status: string }[]>();
+    for (const record of attendance) {
+      const schoolId = record.class.schoolId;
+      const rows = attendanceBySchool.get(schoolId) ?? [];
+      rows.push({ status: record.status });
+      attendanceBySchool.set(schoolId, rows);
+    }
+
+    return shapeTrustReport(schools.map((school) => ({
+      phase: school.phase,
+      headteacher: school.headProfile
+        ? `${school.headProfile.user.firstName} ${school.headProfile.user.lastName}`
+        : null,
+      teacherIds: school.classes.flatMap((schoolClass) => schoolClass.classSubjects.map((assignment) => assignment.teacherId)),
+      pupils: school.students,
+      classes: school.classes.map((schoolClass) => ({
+        name: schoolClass.name,
+        section: schoolClass.section,
+        keyStage: schoolClass.keyStage,
+        pupilCount: schoolClass._count.students,
+      })),
+      attendance: attendanceBySchool.get(school.id) ?? [],
+      admissions: school.admissionApplications,
+    })));
+  }
 
   // ── Enrollment Report ─────────────────────────────────────────────────────
 

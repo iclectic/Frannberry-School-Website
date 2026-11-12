@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api';
+import TrustReport from '@/components/TrustReport';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
@@ -12,17 +13,23 @@ export default function ReportsPage() {
   const [attendance, setAttendance] = useState<any>(null);
   const [fees, setFees] = useState<any>(null);
   const [grades, setGrades] = useState<any>(null);
+  const [trust, setTrust] = useState<any>(null);
+  const [trustError, setTrustError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
     Promise.all([
+      apiFetch('/reports/trust', { token }).then((data) => {
+        setTrust(data);
+        setTrustError('');
+      }).catch((err) => setTrustError(err instanceof Error ? err.message : 'The trust report is for the office admin.')),
       apiFetch('/reports/enrollment', { token }).catch(() => null),
       apiFetch('/reports/attendance', { token }).catch(() => null),
       apiFetch('/reports/fees', { token }).catch(() => null),
       apiFetch('/reports/grades', { token }).catch(() => null),
-    ]).then(([e, a, f, g]) => {
+    ]).then(([, e, a, f, g]) => {
       setEnrollment(e);
       setAttendance(a);
       setFees(f);
@@ -61,10 +68,13 @@ export default function ReportsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reports & Analytics</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">School-wide data reports and CSV exports</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Reports</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Nursery, Primary, and Secondary, for the office admin</p>
         </div>
       </div>
+
+      {trustError && <p role="alert" className="mb-4 text-sm text-red-700">{trustError}</p>}
+      <TrustReport report={trust} />
 
       {/* Export Buttons */}
       <div className="flex flex-wrap gap-3 mb-8">
@@ -102,7 +112,7 @@ export default function ReportsPage() {
             </div>
           </div>
           {enrollment.classCounts?.length > 0 && (
-            <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
@@ -175,7 +185,7 @@ export default function ReportsPage() {
       {grades && grades.subjectAverages?.length > 0 && (
         <div className="mb-8">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Grade Distribution</h2>
-          <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
