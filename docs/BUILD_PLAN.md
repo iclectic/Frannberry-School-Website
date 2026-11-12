@@ -1,6 +1,6 @@
 # Frannberry Schools build plan
 
-Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–7 are done. Step 8 is not started.
+Frannberry is one trust with three schools: Nursery, Primary, and Secondary. This plan records the work in the order it is being built. Steps 1–8 are done.
 
 ## Done
 
@@ -69,8 +69,8 @@ Frannberry is one trust with three schools: Nursery, Primary, and Secondary. Thi
 - A headteacher reviews only their own school. The office reviews every school, and that does not make the office account a headteacher.
 - `POST /api/v1/admissions/applications` is public. `GET /api/v1/admissions/applications` and the enrol and decline routes are for `ADMIN` and `HEAD`.
 
-## Later
-
 ### Step 8. Trust reports
 
-Give the office admin reports across Nursery, Primary, and Secondary without turning the office account into a headteacher.
+- `GET /api/v1/reports/trust` is only for the office `ADMIN`. It lists Nursery, Primary, and Secondary in one report: pupils, who can sign in, classes and key stages, teachers, attendance, and applications.
+- Nursery pupils are counted and shown as unable to sign in, including a nursery child who has a user id.
+- A headteacher does not receive this report. `GET /api/v1/school/dashboard` stays limited to `HEAD`, so the office account is not a headteacher.

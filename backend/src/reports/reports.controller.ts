@@ -21,6 +21,12 @@ import { Response } from 'express';
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
+  @Get('trust')
+  @ApiOperation({ summary: 'Office report across Nursery, Primary, and Secondary' })
+  trust() {
+    return this.reportsService.trustReport();
+  }
+
   @Get('enrollment')
   @ApiOperation({ summary: 'Enrollment stats report' })
   async enrollment() {
